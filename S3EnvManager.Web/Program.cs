@@ -45,6 +45,11 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddDataProtection()
 	.PersistKeysToDbContext<ApplicationDbContext>();
 
+// AssemblyVersion이 커밋마다 바뀌는 빌드 정책(Directory.Build.targets 참고) 때문에, 이전
+// 배포가 영속화한 커스텀 XmlDecryptor 타입 참조를 새 배포가 못 찾아 시작 직후 크래시하는
+// 문제를 막는다 - VersionTolerantActivator.cs 참고.
+VersionTolerantActivator.ReplaceDefault(builder.Services);
+
 // 위 영속화만으로는 키가 평문 저장된다 - 인증서(XmlEncryptor/Decryptor)로 감싸고, 인증서
 // 자체는 PFX로 DB에 저장하되 비밀번호만 DB 밖에서 관리한다. 비밀번호 미설정 시 보호 없이 동작.
 var dataProtectionCertificateCache = new DataProtectionCertificateCache();
