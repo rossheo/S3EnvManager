@@ -1,0 +1,68 @@
+@page "/bucket-status"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = IdentityRoleNames.Administrator)]
+
+@using Microsoft.AspNetCore.Authorization
+@using S3EnvManager.Database
+@using S3EnvManager.Web.Services
+
+@inject IBucketHealthStatusStore BucketHealthStatusStore
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>버킷 상태</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">버킷 상태</MudText>
+<MudText Typo="Typo.body2" Class="mb-1">주 저장소 버킷을 시작 시 1회 + 10분마다 재확인합니다.</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">
+	TLS 강제는 자동으로 켜지 않고 감지만 합니다 - 꺼져 있으면 버킷 정책에
+	<code>aws:SecureTransport</code> 조건을 직접 추가하세요.
+</MudText>
+
+@if (_reports.Count == 0)
+{
+	<MudText Typo="Typo.body1">아직 점검된 버킷이 없습니다(주 저장소를 프로비저닝하면 나타납니다).</MudText>
+}
+else
+{
+	<MudTable Items="_reports" Hover="true" Elevation="0">
+		<HeaderContent>
+			<MudTh>버킷</MudTh>
+			<MudTh>버저닝</MudTh>
+			<MudTh>Public Access Block</MudTh>
+			<MudTh>Object Ownership</MudTh>
+			<MudTh>Lifecycle 규칙</MudTh>
+			<MudTh>TLS 강제(감지만)</MudTh>
+			<MudTh>마지막 점검</MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTd DataLabel="버킷">@context.Bucket</MudTd>
+			<MudTd DataLabel="버저닝">@StatusIcon(context.VersioningEnabled)</MudTd>
+			<MudTd DataLabel="Public Access Block">@StatusIcon(context.PublicAccessBlocked)</MudTd>
+			<MudTd DataLabel="Object Ownership">@StatusIcon(context.ObjectOwnershipEnforced)</MudTd>
+			<MudTd DataLabel="Lifecycle 규칙">@StatusIcon(context.LifecycleRuleConfigured)</MudTd>
+			<MudTd DataLabel="TLS 강제(감지만)">@StatusIcon(context.TlsEnforced)</MudTd>
+			<MudTd DataLabel="마지막 점검">@context.CheckedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+		</RowTemplate>
+	</MudTable>
+}
+
+@code {
+	private IReadOnlyCollection<BucketHealthReport> _reports = [];
+
+	protected override void OnInitialized()
+	{
+		_reports = BucketHealthStatusStore.GetAll();
+	}
+
+	private static RenderFragment StatusIcon(bool ok) => builder =>
+	{
+		builder.OpenComponent<MudIcon>(0);
+		builder.AddAttribute(1, "Icon", ok ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel);
+		builder.AddAttribute(2, "Color", ok ? Color.Success : Color.Error);
+		builder.AddAttribute(3, "Size", Size.Small);
+		builder.CloseComponent();
+	};
+}

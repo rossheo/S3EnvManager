@@ -1,0 +1,396 @@
+@page "/settings/bootstrap"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = IdentityRoleNames.Administrator)]
+
+@using System.Security.Claims
+@using System.Text.RegularExpressions
+@using Amazon.SecurityToken
+@using Amazon.SecurityToken.Model
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using S3EnvManager.Database
+@using S3EnvManager.Sops
+@using S3EnvManager.Web.Services
+
+@inject IAwsBootstrapCredentialStore AwsBootstrapCredentialStore
+@inject IRuntimeAwsCredentialsOverride AdminCredentialOverride
+@inject IAmazonSecurityTokenService Sts
+@inject IAwsAutoProvisioningService AutoProvisioningService
+@inject IBootstrapAppIdentityProvisioner AppIdentityProvisioner
+@inject IJSRuntime JsRuntime
+@inject ISnackbar Snackbar
+
+<MudPopoverProvider />
+<MudSnackbarProvider />
+
+<PageTitle>자동 프로비저닝</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">자동 프로비저닝</MudText>
+<MudText Typo="Typo.body1" Class="mb-1">
+	S3EnvManager-admin AWS 자격증명 하나만 준비하면, 나머지는 아래 "자동 프로비저닝 실행"
+	버튼 하나로 구성됩니다 - AWS 콘솔을 오갈 필요가 없습니다(무엇이 구성되는지는 아래 각
+	단계에 나와 있습니다).
+</MudText>
+<MudText Typo="Typo.body1" Class="mb-1">
+	자격증명 자체는 S3EnvManager가 스스로 발급할 수 없어(닭-달걀 문제) 최초 1회만 수동으로
+	준비해야 합니다.
+</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+	각 단계는 재실행해도 안전합니다 - 이미 구성된 항목은 건드리지 않고 건너뛰며, 실패한 뒤
+	다시 눌러도 그 지점부터 이어집니다.
+</MudText>
+
+<MudPaper Class="pa-4 mb-4" MaxWidth="700px">
+	<MudText Typo="Typo.subtitle1" Class="mb-1">1단계 - S3EnvManager-admin 정책/자격증명(유일한 수동 단계)</MudText>
+	<MudText Typo="Typo.body2" Class="mb-2">
+		정책이 접근을 허용할 버킷 패턴을 지정하세요(자동 생성될 버킷 이름은 아래 2단계에서
+		따로 입력합니다). AWS IAM 콘솔에서 사용자를 하나 만들고(예: s3envmanager-admin) 아래
+		정책 JSON을 그대로 붙인 Access Key를 발급해 입력하세요. 이 정책은 CMK가 아직 없어도
+		그대로 붙여넣을 수 있는 완성된 형태입니다 - 나중에 다시 고칠 필요가 없습니다.
+	</MudText>
+	<MudTextField @bind-Value="_bucketPattern"
+		Label="버킷(접두사 뒤 '*'로 여러 버킷 허용, 전체 허용은 '*')"
+		Immediate="true"
+		Class="mb-2"
+		HelperText="'name-*'처럼 접두사 와일드카드를 쓰면 그 이름으로 시작하는 버킷만 허용되어 계정 전체 버킷을 여는 '*'보다 안전합니다."
+		Validation="@(new Func<string, string?>(ValidateBucketPattern))" />
+
+	<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-1 mt-2">
+		<MudText Typo="Typo.body2">정책 JSON</MudText>
+		<MudButton Size="Size.Small"
+			Variant="Variant.Outlined"
+			StartIcon="@Icons.Material.Filled.ContentCopy"
+			OnClick="CopyPolicyAsync">
+			복사
+		</MudButton>
+	</MudStack>
+	<MudTextField Value="@PolicyJson"
+		ReadOnly="true"
+		Lines="20"
+		Variant="Variant.Outlined"
+		Style="font-family: monospace;" />
+
+	<MudStack Row="true" Spacing="2" Class="mt-4">
+		<MudTextField @bind-Value="_accessKeyId" Label="AWS Access Key ID" Immediate="true" Style="flex: 1;" />
+		<MudTextField @bind-Value="_secretAccessKey"
+			Label="AWS Secret Access Key"
+			InputType="InputType.Password"
+			Immediate="true"
+			Style="flex: 1;" />
+	</MudStack>
+	<MudStack Row="true" Spacing="2" Class="mt-2">
+		<MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveCredentialAsync"
+			Disabled="_savingCredential">
+			@(_savingCredential ? "저장 중..." : "저장")
+		</MudButton>
+		<MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="ClearCredentialAsync">
+			초기화
+		</MudButton>
+		<MudText Typo="Typo.caption" Class="align-self-center">
+			현재 상태: @(AdminCredentialOverride.IsSet ? "저장된 값 적용 중" : "설정되지 않음")
+		</MudText>
+	</MudStack>
+</MudPaper>
+
+<MudPaper Class="pa-4 mb-4" MaxWidth="700px">
+	<MudText Typo="Typo.subtitle1" Class="mb-1">2단계 - 리전/버킷</MudText>
+	<MudText Typo="Typo.body2" Class="mb-2">
+		자동 프로비저닝이 생성/확인할 리전과 실제 버킷 이름입니다(위 1단계의 패턴과 별개로,
+		실제로 만들 버킷 하나를 구체적으로 지정합니다 - 그 패턴에 맞는 이름이어야 정책이
+		허용합니다). 이 리전/버킷이 곧 주 저장소 설정이 됩니다 - 별도 화면에서 따로 관리하지
+		않습니다(App 등록 화면의 버킷 이름 기본값으로도 그대로 제안됩니다).
+	</MudText>
+	<MudSelect T="string" @bind-Value="_region" Label="리전" Class="mb-2">
+		@foreach (var (regionCode, regionLabel) in AwsRegions)
+		{
+			<MudSelectItem T="string" Value="@regionCode">@regionCode - @regionLabel</MudSelectItem>
+		}
+	</MudSelect>
+	<MudTextField @bind-Value="_bucket"
+		Label="버킷 이름(와일드카드 없이, 예: s3envmanager-bucket)"
+		Immediate="true"
+		Class="mb-2"
+		Validation="@(new Func<string, string?>(ValidateProvisioningBucket))" />
+	<MudCheckBox @bind-Value="_createBucketIfMissing" Label="버킷이 없으면 자동 생성" Class="mb-2" />
+</MudPaper>
+
+<MudPaper Class="pa-4 mb-4" MaxWidth="700px">
+	<MudText Typo="Typo.subtitle1" Class="mb-2">3단계 - 자동 프로비저닝 실행</MudText>
+	<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RunProvisioningAsync"
+		Disabled="_running || !AdminCredentialOverride.IsSet || string.IsNullOrWhiteSpace(_bucket)">
+		@(_running ? "실행 중..." : "자동 프로비저닝 실행")
+	</MudButton>
+	@if (!AdminCredentialOverride.IsSet)
+	{
+		<MudText Typo="Typo.caption" Class="mt-1" style="display: block;">1단계에서 자격증명을 먼저 저장하세요.</MudText>
+	}
+
+	@if (_report is not null)
+	{
+		<MudTable Items="_report.Steps" Hover="true" Elevation="0" Dense="true" Class="mt-4">
+			<HeaderContent>
+				<MudTh>단계</MudTh>
+				<MudTh>결과</MudTh>
+				<MudTh>상세</MudTh>
+			</HeaderContent>
+			<RowTemplate>
+				<MudTd DataLabel="단계">@context.Name</MudTd>
+				<MudTd DataLabel="결과">
+					<MudChip T="string"
+						Size="Size.Small"
+						Color="@StepColor(context.Status)">@StepLabel(context.Status)</MudChip>
+				</MudTd>
+				<MudTd DataLabel="상세">@context.Detail</MudTd>
+			</RowTemplate>
+		</MudTable>
+
+		@if (_report.Succeeded)
+		{
+			<MudAlert Severity="Severity.Success" Class="mt-2">
+				자동 프로비저닝을 완료했습니다 - 이제 App을 등록하고 시크릿을 저장할 수 있습니다.
+			</MudAlert>
+		}
+		else
+		{
+			<MudAlert Severity="Severity.Warning" Class="mt-2">
+				일부 단계가 실패했습니다 - 위 상세 메시지를 확인하고 조치한 뒤 다시 실행하세요(이미
+				완료된 단계는 다시 건드리지 않습니다).
+			</MudAlert>
+		}
+
+		@if (_conflictingAccessKeyIds is { Count: > 0 })
+		{
+			<MudAlert Severity="Severity.Info" Class="mt-2">
+				<MudText Typo="Typo.body2" Class="mb-2">
+					부트스트랩 app 사용자(s3envmanager-app)에 이미 발급된 Access Key입니다 - 저장소
+					밖에서 발급된 키라면 삭제 후 다시 실행하세요. 어떤 용도인지 모르겠으면 지우지
+					말고 AWS IAM 콘솔에서 먼저 확인하세요.
+				</MudText>
+				@foreach (var keyId in _conflictingAccessKeyIds)
+				{
+					<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+						<MudText Typo="Typo.body2" Style="font-family: monospace;">@keyId</MudText>
+						<MudButton Size="Size.Small"
+							Variant="Variant.Outlined"
+							Color="Color.Error"
+							OnClick="@(() => DeleteConflictingKeyAsync(keyId))">
+							이 키 삭제
+						</MudButton>
+					</MudStack>
+				}
+			</MudAlert>
+		}
+	}
+</MudPaper>
+
+@code {
+	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+	// 상용(aws) 파티션 리전만 담는다 - GovCloud/중국/ISO 등은 별도 계정·인증 체계가 필요하다.
+	private static readonly (string Code, string Label)[] AwsRegions =
+	[
+		("us-east-1", "미국 동부(버지니아 북부)"),
+		("us-east-2", "미국 동부(오하이오)"),
+		("us-west-1", "미국 서부(캘리포니아 북부)"),
+		("us-west-2", "미국 서부(오레곤)"),
+		("af-south-1", "아프리카(케이프타운)"),
+		("ap-east-1", "아시아 태평양(홍콩)"),
+		("ap-south-1", "아시아 태평양(뭄바이)"),
+		("ap-south-2", "아시아 태평양(하이데라바드)"),
+		("ap-northeast-1", "아시아 태평양(도쿄)"),
+		("ap-northeast-2", "아시아 태평양(서울)"),
+		("ap-northeast-3", "아시아 태평양(오사카)"),
+		("ap-southeast-1", "아시아 태평양(싱가포르)"),
+		("ap-southeast-2", "아시아 태평양(시드니)"),
+		("ap-southeast-3", "아시아 태평양(자카르타)"),
+		("ap-southeast-4", "아시아 태평양(멜버른)"),
+		("ca-central-1", "캐나다(중부)"),
+		("ca-west-1", "캐나다 서부(캘거리)"),
+		("eu-central-1", "유럽(프랑크푸르트)"),
+		("eu-central-2", "유럽(취리히)"),
+		("eu-west-1", "유럽(아일랜드)"),
+		("eu-west-2", "유럽(런던)"),
+		("eu-west-3", "유럽(파리)"),
+		("eu-north-1", "유럽(스톡홀름)"),
+		("eu-south-1", "유럽(밀라노)"),
+		("eu-south-2", "유럽(스페인)"),
+		("il-central-1", "이스라엘(텔아비브)"),
+		("me-south-1", "중동(바레인)"),
+		("me-central-1", "중동(UAE)"),
+		("sa-east-1", "남아메리카(상파울루)"),
+	];
+
+	// 2단계 버킷 이름이 1단계 패턴(_bucketPattern)과 어긋나면 IAM 정책이 거부해 3단계가
+	// AccessDenied로 실패하므로 여기서 미리 검사한다.
+	private string? ValidateProvisioningBucket(string? bucket)
+	{
+		var baseError = BucketNameValidator.Validate(bucket);
+		if (baseError is not null)
+		{
+			return baseError;
+		}
+		return MatchesBucketPattern(_bucketPattern, bucket!)
+			? null
+			: $"버킷 이름이 위 1단계 패턴(\"{_bucketPattern}\")과 일치하지 않아 정책이 거부합니다.";
+	}
+
+	private static bool MatchesBucketPattern(string pattern, string bucket)
+	{
+		if (pattern == "*")
+		{
+			return true;
+		}
+		return pattern.EndsWith('*')
+			? bucket.StartsWith(pattern[..^1], StringComparison.Ordinal)
+			: string.Equals(pattern, bucket, StringComparison.Ordinal);
+	}
+
+	private string _bucketPattern = "s3envmanager-*";
+	private string _region = "ap-northeast-2";
+	private string _bucket = string.Empty;
+	private bool _createBucketIfMissing = true;
+	private string _accessKeyId = string.Empty;
+	private string _secretAccessKey = string.Empty;
+	private bool _savingCredential;
+	private bool _running;
+	private ProvisioningReport? _report;
+	private IReadOnlyList<string>? _conflictingAccessKeyIds;
+
+	private string PolicyJson => BootstrapPolicyDocument.BuildAdminPolicyJson(_bucketPattern);
+
+	private async Task<string?> GetCurrentUserIdAsync()
+	{
+		if (AuthenticationStateTask is null)
+		{
+			return null;
+		}
+		var state = await AuthenticationStateTask;
+		return state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+	}
+
+	private async Task CopyPolicyAsync()
+	{
+		await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", PolicyJson);
+		Snackbar.Add("정책 JSON을 클립보드에 복사했습니다.", Severity.Success);
+	}
+
+	private async Task SaveCredentialAsync()
+	{
+		if (string.IsNullOrWhiteSpace(_accessKeyId) || string.IsNullOrWhiteSpace(_secretAccessKey))
+		{
+			Snackbar.Add("Access Key ID와 Secret Access Key를 모두 입력하세요.", Severity.Warning);
+			return;
+		}
+
+		_savingCredential = true;
+		try
+		{
+			var accessKeyId = _accessKeyId.Trim();
+			var secretAccessKey = _secretAccessKey.Trim();
+
+			await AwsBootstrapCredentialStore.SaveAsync(CmkRole.Admin, accessKeyId, secretAccessKey);
+			AdminCredentialOverride.Set(accessKeyId, secretAccessKey);
+			_secretAccessKey = string.Empty;
+
+			// 저장은 이미 끝났으므로, 연결 확인 실패는 Warning으로만 알리고 되돌리지 않는다.
+			try
+			{
+				var identity = await Sts.GetCallerIdentityAsync(new GetCallerIdentityRequest());
+				Snackbar.Add($"저장 완료 - 연결 성공: 계정 {identity.Account}, {identity.Arn}", Severity.Success);
+			}
+			catch (Exception ex)
+			{
+				Snackbar.Add($"저장은 완료했지만 연결 확인에 실패했습니다: {ex.Message}", Severity.Warning);
+			}
+		}
+		finally
+		{
+			_savingCredential = false;
+		}
+	}
+
+	private async Task ClearCredentialAsync()
+	{
+		await AwsBootstrapCredentialStore.ClearAsync(CmkRole.Admin);
+		AdminCredentialOverride.Clear();
+
+		_accessKeyId = string.Empty;
+		_secretAccessKey = string.Empty;
+		Snackbar.Add("admin 자격증명을 저장소에서 지웠습니다.", Severity.Warning);
+	}
+
+	private async Task RunProvisioningAsync()
+	{
+		_running = true;
+		_conflictingAccessKeyIds = null;
+		try
+		{
+			var actorUserId = await GetCurrentUserIdAsync();
+			var request = new ProvisioningRequest(_bucket.Trim(), _region.Trim(), _createBucketIfMissing);
+			_report = await AutoProvisioningService.EnsureProvisionedAsync(
+				request, actorUserId, includeBucketProvisioning: true);
+
+			if (_report.Succeeded)
+			{
+				Snackbar.Add("자동 프로비저닝을 완료했습니다.", Severity.Success);
+			}
+			else
+			{
+				Snackbar.Add("일부 단계가 실패했습니다 - 아래 체크리스트를 확인하세요.", Severity.Warning);
+				var accessKeyStepFailed = _report.Steps.Any(
+					s => s.Name.Contains("Access Key") && s.Status == ProvisioningStepStatus.Failed);
+				if (accessKeyStepFailed)
+				{
+					_conflictingAccessKeyIds = await AppIdentityProvisioner.ListAccessKeyIdsAsync();
+				}
+			}
+		}
+		finally
+		{
+			_running = false;
+		}
+	}
+
+	private async Task DeleteConflictingKeyAsync(string accessKeyId)
+	{
+		await AppIdentityProvisioner.DeleteAccessKeyAsync(accessKeyId);
+		Snackbar.Add($"{accessKeyId} 삭제했습니다 - 다시 실행해 보세요.", Severity.Success);
+		_conflictingAccessKeyIds = await AppIdentityProvisioner.ListAccessKeyIdsAsync();
+	}
+
+	private static Color StepColor(ProvisioningStepStatus status) => status switch
+	{
+		ProvisioningStepStatus.Done => Color.Success,
+		ProvisioningStepStatus.AlreadyProvisioned => Color.Default,
+		ProvisioningStepStatus.Failed => Color.Error,
+		ProvisioningStepStatus.SkippedDueToEarlierFailure => Color.Warning,
+		_ => Color.Default,
+	};
+
+	private static string StepLabel(ProvisioningStepStatus status) => status switch
+	{
+		ProvisioningStepStatus.Done => "완료",
+		ProvisioningStepStatus.AlreadyProvisioned => "이미 구성됨",
+		ProvisioningStepStatus.Failed => "실패",
+		ProvisioningStepStatus.SkippedDueToEarlierFailure => "건너뜀",
+		_ => status.ToString(),
+	};
+
+	private static readonly Regex BucketPrefixPattern = new("^[a-z0-9][a-z0-9.-]*$");
+
+	private static string? ValidateBucketPattern(string? bucket)
+	{
+		if (bucket == "*")
+		{
+			return null;
+		}
+		if (!string.IsNullOrEmpty(bucket) && bucket.EndsWith('*'))
+		{
+			var prefix = bucket[..^1];
+			return prefix.Length > 0 && BucketPrefixPattern.IsMatch(prefix)
+				? null
+				: "버킷 접두사는 소문자/숫자로 시작하고, 소문자·숫자·마침표(.)·하이픈(-)만 사용할 수 있습니다.";
+		}
+		return BucketNameValidator.Validate(bucket);
+	}
+}

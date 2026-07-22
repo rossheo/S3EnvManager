@@ -1,0 +1,88 @@
+@page "/admin/feature-switches"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = IdentityRoleNames.Administrator)]
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using S3EnvManager.Database
+@using S3EnvManager.Web.Services
+
+@inject IFeatureSwitchService FeatureSwitchService
+@inject ISnackbar Snackbar
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>Feature 스위치</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Feature 스위치</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">
+	특정 기능을 즉시 켜거나 끌 수 있는 스위치입니다. 재배포 없이 즉시 반영됩니다.
+</MudText>
+
+@if (_switches is null)
+{
+	<MudProgressCircular Color="Color.Default" Indeterminate="true" />
+}
+else
+{
+	<MudTable Items="_switches" Hover="true" Elevation="0">
+		<HeaderContent>
+			<MudTh>Key</MudTh>
+			<MudTh>활성화</MudTh>
+			<MudTh>Description</MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTd DataLabel="Key">@context.Key</MudTd>
+			<MudTd DataLabel="활성화">
+				<MudSwitch T="bool" Value="@context.Enabled"
+					ValueChanged="@(enabled => SetEnabledAsync(context.Key, enabled))"
+					Color="Color.Primary" />
+			</MudTd>
+			<MudTd DataLabel="Description">@context.Description</MudTd>
+		</RowTemplate>
+	</MudTable>
+}
+
+@code {
+	private List<FeatureSwitchInfo>? _switches;
+
+	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+	protected override async Task OnInitializedAsync()
+	{
+		await ReloadAsync();
+	}
+
+	private async Task ReloadAsync()
+	{
+		_switches = await FeatureSwitchService.ListAsync();
+	}
+
+	private async Task<string?> GetCurrentUserIdAsync()
+	{
+		if (AuthenticationStateTask is null)
+		{
+			return null;
+		}
+		var state = await AuthenticationStateTask;
+		return state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+	}
+
+	private async Task SetEnabledAsync(string key, bool enabled)
+	{
+		try
+		{
+			var actorUserId = await GetCurrentUserIdAsync();
+			await FeatureSwitchService.SetEnabledAsync(key, enabled, actorUserId);
+			await ReloadAsync();
+			Snackbar.Add("변경했습니다.", Severity.Success);
+		}
+		catch (Exception ex)
+		{
+			Snackbar.Add($"변경에 실패했습니다: {ex.Message}", Severity.Error);
+		}
+	}
+}

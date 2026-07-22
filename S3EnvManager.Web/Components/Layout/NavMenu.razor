@@ -1,0 +1,102 @@
+﻿@implements IDisposable
+
+@using S3EnvManager.Database
+
+@inject NavigationManager NavigationManager
+
+<MudNavMenu>
+	<MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">대시보드</MudNavLink>
+	<AuthorizeView Roles="@($"{IdentityRoleNames.Administrator},{IdentityRoleNames.Member}")">
+		<Authorized>
+			<MudNavLink Href="apps"
+						Match="NavLinkMatch.Prefix"
+						Icon="@Icons.Material.Filled.Apps">Apps</MudNavLink>
+		</Authorized>
+	</AuthorizeView>
+
+	<AuthorizeView Roles="@IdentityRoleNames.Administrator">
+		<Authorized>
+			<MudNavGroup Title="키·저장소 관리" Icon="@Icons.Material.Filled.Key" Expanded="true">
+				<MudNavLink Href="settings/bootstrap"
+							Match="NavLinkMatch.Prefix"
+							Icon="@Icons.Material.Filled.RocketLaunch">자동 프로비저닝</MudNavLink>
+				<MudNavLink Href="bucket-status"
+							Match="NavLinkMatch.Prefix"
+							Icon="@Icons.Material.Filled.CloudQueue">버킷 상태</MudNavLink>
+				<MudNavLink Href="admin/cmk-registry"
+							Match="NavLinkMatch.Prefix"
+							Icon="@Icons.Material.Filled.VpnKey">CMK 레지스트리</MudNavLink>
+				<MudNavLink Href="admin/data-key-rotation"
+							Match="NavLinkMatch.Prefix"
+							Icon="@Icons.Material.Filled.Autorenew">데이터 키 로테이션</MudNavLink>
+				<MudNavLink Href="admin/db-backup-account"
+							Match="NavLinkMatch.Prefix"
+							Icon="@Icons.Material.Filled.Backup">DB 백업 계정</MudNavLink>
+			</MudNavGroup>
+			<MudNavGroup Title="관리" Icon="@Icons.Material.Filled.AdminPanelSettings" Expanded="true">
+				<MudNavLink Href="admin/feature-switches"
+							Match="NavLinkMatch.Prefix"
+							Icon="@Icons.Material.Filled.ToggleOn">Feature 스위치</MudNavLink>
+				<MudNavLink Href="admin/users"
+							Match="NavLinkMatch.Prefix"
+							Icon="@Icons.Material.Filled.People">사용자 역할 관리</MudNavLink>
+				<MudNavLink Href="admin/audit-log"
+							Match="NavLinkMatch.Prefix"
+							Icon="@Icons.Material.Filled.History">감사 로그</MudNavLink>
+			</MudNavGroup>
+		</Authorized>
+	</AuthorizeView>
+</MudNavMenu>
+
+<MudDivider Class="my-2 mx-3" />
+
+<MudNavMenu Class="mb-2">
+	<AuthorizeView>
+		<Authorized>
+			<MudNavLink Href="Account/Manage"
+						Match="NavLinkMatch.Prefix"
+						Icon="@Icons.Material.Filled.Person"
+						IconColor="Color.Default">@context.User.Identity?.Name</MudNavLink>
+			<form action="Account/Logout" method="post">
+				<AntiforgeryToken />
+				<input type="hidden" name="ReturnUrl" value="@currentUrl" />
+				<button type="submit" class="mud-nav-link mud-ripple">
+					<MudIcon Icon="@Icons.Material.Filled.Logout"
+							 Color="Color.Default"
+							 Class="mr-3"></MudIcon> Logout
+				</button>
+			</form>
+		</Authorized>
+		<NotAuthorized>
+			<MudNavLink Href="Account/Login"
+						Match="NavLinkMatch.Prefix"
+						Icon="@Icons.Material.Filled.Password">Login</MudNavLink>
+		</NotAuthorized>
+	</AuthorizeView>
+</MudNavMenu>
+
+<MudText Typo="Typo.caption" Class="mt-auto pa-3" Style="color: rgba(0, 0, 0, 0.2);">
+	v@(VersionInfo.Version) · @VersionInfo.GitBranch · @VersionInfo.GitCommitHash
+</MudText>
+
+@code {
+	private string? currentUrl;
+
+	protected override void OnInitialized()
+	{
+		currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+		NavigationManager.LocationChanged += OnLocationChanged;
+	}
+
+	private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+	{
+		currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+		StateHasChanged();
+	}
+
+	public void Dispose()
+	{
+		NavigationManager.LocationChanged -= OnLocationChanged;
+	}
+}
+

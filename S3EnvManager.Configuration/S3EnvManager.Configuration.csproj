@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\S3EnvManager.Sops\S3EnvManager.Sops.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- S3EnvManager가 관리하는 시크릿을 쓰는 제3자 Application이
+         설치하는 IConfiguration 확장 Provider. Aspire/MudBlazor/EF Core/Identity는
+         참조하지 않는다(불필요한 트랜지티브 의존성을 딸려 보내지 않기 위함). -->
+    <PackageId>S3EnvManager.Configuration</PackageId>
+    <Description>S3EnvManager가 관리하는 시크릿 번들을 IConfiguration 소스로 읽어오는 Provider. AddS3EnvManager()로 등록하면 App__Setting 형태의 키가 App:Setting으로 매핑되고, 폴링으로 변경 사항이 실시간 반영된다.</Description>
+    <RepositoryUrl>https://github.com/rossheo/S3EnvManager.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/rossheo/S3EnvManager</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>s3envmanager;configuration;secrets;s3</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

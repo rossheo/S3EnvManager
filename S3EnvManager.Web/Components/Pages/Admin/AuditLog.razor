@@ -1,0 +1,93 @@
+@page "/admin/audit-log"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = IdentityRoleNames.Administrator)]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using S3EnvManager.Database
+
+@inject ApplicationDbContext Db
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>감사 로그</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">감사 로그</MudText>
+<MudText Typo="Typo.body2" Class="mb-1">다음 운영 이벤트를 기록합니다(값은 남기지 않고 어떤 키가 바뀌었는지만 남깁니다):</MudText>
+<ul class="mud-typography-body2 mb-2" style="padding-left: 1.25rem; margin: 0;">
+	<li>시크릿 편집</li>
+	<li>자격증명 발급/폐기</li>
+	<li>버킷 자가 치유</li>
+	<li>CMK 등록/승격</li>
+	<li>데이터 키 로테이션</li>
+</ul>
+<MudText Typo="Typo.body2" Class="mb-4">180일 지난 로그는 자동 삭제됩니다.</MudText>
+
+<MudTable ServerData="ServerReloadAsync" Hover="true" Elevation="0" Dense="true" Loading="_loading">
+	<HeaderContent>
+		<MudTh Style="white-space: nowrap;">발생 시각</MudTh>
+		<MudTh>이벤트</MudTh>
+		<MudTh>행위자</MudTh>
+		<MudTh>App</MudTh>
+		<MudTh>상세</MudTh>
+	</HeaderContent>
+	<RowTemplate>
+		<MudTd DataLabel="발생 시각" Style="white-space: nowrap;">
+			@context.OccurredAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+		</MudTd>
+		<MudTd DataLabel="이벤트">@context.EventType</MudTd>
+		<MudTd DataLabel="행위자">@(context.ActorEmail ?? "(시스템)")</MudTd>
+		<MudTd DataLabel="App">@(context.AppName ?? "-")</MudTd>
+		<MudTd DataLabel="상세">
+			<SecretValuePreview Value="@context.Details" ReadOnly="true" Title="이벤트 상세" />
+		</MudTd>
+	</RowTemplate>
+	<NoRecordsContent>
+		<MudText Typo="Typo.body1">아직 기록된 이벤트가 없습니다.</MudText>
+	</NoRecordsContent>
+	<PagerContent>
+		<MudTablePager PageSizeOptions="new[] { 25, 50, 100 }" InfoFormat="{first_item}-{last_item} / 총 {all_items}건" />
+	</PagerContent>
+</MudTable>
+
+@code {
+	private Boolean _loading;
+
+	private async Task<TableData<Row>> ServerReloadAsync(TableState state, CancellationToken cancellationToken)
+	{
+		_loading = true;
+
+		var totalCount = await Db.AuditLogs.AsNoTracking().CountAsync(cancellationToken);
+
+		var logs = await Db.AuditLogs.AsNoTracking()
+			.OrderByDescending(a => a.OccurredAt)
+			.Skip(state.Page * state.PageSize)
+			.Take(state.PageSize)
+			.ToListAsync(cancellationToken);
+
+		var actorIds = logs.Where(l => l.ActorUserId is not null).Select(l => l.ActorUserId!).Distinct().ToList();
+		var actorEmails = await Db.Users.AsNoTracking()
+			.Where(u => actorIds.Contains(u.Id))
+			.ToDictionaryAsync(u => u.Id, u => u.Email, cancellationToken);
+
+		var appIds = logs.Where(l => l.AppId is not null).Select(l => l.AppId!.Value).Distinct().ToList();
+		var appNames = await Db.Apps.AsNoTracking()
+			.Where(a => appIds.Contains(a.Id))
+			.ToDictionaryAsync(a => a.Id, a => a.Name, cancellationToken);
+
+		var rows = logs.Select(l => new Row(
+			l.OccurredAt,
+			l.EventType,
+			l.ActorUserId is not null && actorEmails.TryGetValue(l.ActorUserId, out var email) ? email : null,
+			l.AppId is not null && appNames.TryGetValue(l.AppId.Value, out var name) ? name : null,
+			l.Details)).ToList();
+
+		_loading = false;
+		return new TableData<Row> { TotalItems = totalCount, Items = rows };
+	}
+
+	private sealed record Row(
+		DateTimeOffset OccurredAt, string EventType, string? ActorEmail, string? AppName, string? Details);
+}

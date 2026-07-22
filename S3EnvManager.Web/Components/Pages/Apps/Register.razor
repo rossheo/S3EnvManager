@@ -1,0 +1,126 @@
+@page "/apps/register"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{IdentityRoleNames.Administrator},{IdentityRoleNames.Member}")]
+
+@using Amazon.S3
+@using Microsoft.AspNetCore.Authorization
+@using S3EnvManager.Database
+@using S3EnvManager.Web.Services
+
+@inject IAppRegistrationService AppRegistrationService
+@inject IPrimaryStorageSettingsStore PrimaryStorageSettingsStore
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>App 등록</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">App 등록</MudText>
+
+@if (!_loaded)
+{
+	<MudProgressCircular Color="Color.Default" Indeterminate="true" />
+}
+else if (_bucket is null)
+{
+	<MudAlert Severity="Severity.Warning">
+		주 저장소가 아직 프로비저닝되지 않았습니다 - <MudLink Href="settings/bootstrap">자동 프로비저닝</MudLink>
+		화면에서 먼저 완료하세요.
+	</MudAlert>
+}
+else
+{
+	<MudPaper Class="pa-4" MaxWidth="600px">
+		<MudForm @ref="_form" Model="_model">
+			<MudTextField @bind-Value="_model.Name" Label="App 이름" Required="true"
+				RequiredError="App 이름을 입력하세요." Immediate="true"
+				Validation="@(new Func<string, string?>(AppNameValidator.Validate))"
+				HelperText="@($"IAM 사용자 이름으로도 쓰인다 - 영문자, 숫자, + = , . @ _ - 만 사용 가능(최대 {AppNameValidator.MaxLength}자).")" />
+			<MudTextField Value="@_bucket" Label="버킷 이름" ReadOnly="true" Disabled="true" Class="mt-4"
+				HelperText="주 저장소로 프로비저닝된 버킷입니다 - 모든 App이 이 버킷을 공유합니다." />
+
+			@if (_errorMessage is not null)
+			{
+				<MudAlert Severity="Severity.Error" Class="mt-4">@_errorMessage</MudAlert>
+			}
+
+			<MudStack Row="true" Class="mt-4" Spacing="2">
+				<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="_submitting">
+					@(_submitting ? "등록 중..." : "등록")
+				</MudButton>
+				<MudButton Variant="Variant.Text" OnClick="@(() => NavigationManager.NavigateTo("/apps"))">
+					취소
+				</MudButton>
+			</MudStack>
+		</MudForm>
+	</MudPaper>
+}
+
+@code {
+	private MudForm _form = null!;
+	private readonly FormModel _model = new();
+	private bool _loaded;
+	private string? _bucket;
+	private bool _submitting;
+	private string? _errorMessage;
+
+	protected override async Task OnInitializedAsync()
+	{
+		_bucket = await PrimaryStorageSettingsStore.GetLastProvisionedBucketAsync();
+		_loaded = true;
+	}
+
+	private async Task SubmitAsync()
+	{
+		_errorMessage = null;
+		await _form.ValidateAsync();
+		if (!_form.IsValid || _bucket is null)
+		{
+			return;
+		}
+
+		_submitting = true;
+		try
+		{
+			await AppRegistrationService.RegisterAsync(_model.Name);
+			Snackbar.Add($"App '{_model.Name}'을(를) 등록했습니다.", Severity.Success);
+			NavigationManager.NavigateTo("/apps");
+		}
+		catch (AppNameAlreadyExistsException ex)
+		{
+			_errorMessage = ex.Message;
+		}
+		catch (InvalidAppNameException ex)
+		{
+			_errorMessage = ex.Message;
+		}
+		catch (AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket")
+		{
+			// 주 저장소 버킷이 프로비저닝 이후 밖에서 지워진 드문 경우.
+			_errorMessage = $"버킷 '{_bucket}'이(가) 존재하지 않아 등록을 되돌렸습니다 - " +
+				"자동 프로비저닝 화면에서 상태를 확인하세요.";
+		}
+		catch (AmazonS3Exception ex)
+			when (ex.ErrorCode is "AccessDenied" or "InvalidAccessKeyId" or "SignatureDoesNotMatch")
+		{
+			_errorMessage = $"버킷 '{_bucket}'에 접근 권한이 없어 등록을 되돌렸습니다 - " +
+				$"S3EnvManager-admin 자격증명/버킷 정책을 확인하세요. ({ex.ErrorCode})";
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"버킷에 접근할 수 없어 등록을 되돌렸습니다: {ex.Message}";
+		}
+		finally
+		{
+			_submitting = false;
+		}
+	}
+
+	private sealed class FormModel
+	{
+		public string Name { get; set; } = string.Empty;
+	}
+}

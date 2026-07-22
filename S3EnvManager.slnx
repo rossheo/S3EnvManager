@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Solution items/">
+    <File Path="CLAUDE.md" />
+    <File Path="Directory.Build.targets" />
+    <File Path="README.md" />
+    <File Path="version.json" />
+  </Folder>
+  <Project Path="S3EnvManager.AppHost/S3EnvManager.AppHost.csproj" />
+  <Project Path="S3EnvManager.Configuration.SampleApp/S3EnvManager.Configuration.SampleApp.csproj" />
+  <Project Path="S3EnvManager.Configuration/S3EnvManager.Configuration.csproj" />
+  <Project Path="S3EnvManager.Database/S3EnvManager.Database.csproj" />
+  <Project Path="S3EnvManager.MigrationService/S3EnvManager.MigrationService.csproj" />
+  <Project Path="S3EnvManager.ServiceDefaults/S3EnvManager.ServiceDefaults.csproj" />
+  <Project Path="S3EnvManager.Sops.Tests/S3EnvManager.Sops.Tests.csproj" />
+  <Project Path="S3EnvManager.Sops/S3EnvManager.Sops.csproj" />
+  <Project Path="S3EnvManager.Web.Tests/S3EnvManager.Web.Tests.csproj" />
+  <Project Path="S3EnvManager.Web/S3EnvManager.Web.csproj" />
+</Solution>

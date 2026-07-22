@@ -1,0 +1,9 @@
+/* 활성 네비게이션 항목의 아이콘이 텍스트와 같은 테마 Primary 색을 따르도록 한다.
+   MudNavLink의 IconColor 기본값(Default)은 활성 상태에서도 바뀌지 않아 별도로 지정한다.
+   MudNavLink/MudIcon은 자식 컴포넌트라 NavMenu.razor의 scoped CSS(::deep)로는 닿지 않아
+   전역 스타일시트에 둔다. MudBlazor 자체 규칙
+   (:not(.mud-nav-link-disabled) .mud-nav-link-icon.mud-nav-link-icon-default)과 특이성이
+   같아 !important로 명확히 우선시킨다. */
+.mud-nav-link.active .mud-icon-root {
+	color: var(--mud-palette-primary) !important;
+}

@@ -1,0 +1,16 @@
+.app-bar-bordered {
+	border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+/* wwwroot/images/logo.png는 흰색 단색 아이콘(투명 배경)이라, 흰색 AppBar 위에서는 그대로
+   두면 보이지 않는다. Primary 색 배지를 깔아 원래 보라 AppBar 위에서처럼 도드라지게 한다. */
+.logo-badge {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
+	background-color: var(--mud-palette-primary);
+	flex-shrink: 0;
+}

@@ -1,0 +1,217 @@
+@page "/admin/cmk-registry"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = IdentityRoleNames.Administrator)]
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using S3EnvManager.Database
+@using S3EnvManager.Database.Models
+@using S3EnvManager.Sops
+@using S3EnvManager.Web.Services
+
+@inject ICmkRegistryService CmkRegistryService
+@inject IKmsKeyAdministration KmsKeyAdministration
+@inject IJSRuntime JsRuntime
+@inject ISnackbar Snackbar
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>CMK 레지스트리</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">CMK 레지스트리</MudText>
+<MudText Typo="Typo.body2" Class="mb-1">
+	role(admin/app)별로 CMK를 1~N개 등록하고, 그중 하나만 활성(Active)으로 승격해 새 암호화에 씁니다.
+</MudText>
+<MudText Typo="Typo.body2" Class="mb-2">
+	활성이 아닌 CMK도 과거 데이터 복호화를 위해 등록 상태로 남습니다 - app role CMK는 제거 시
+	의존하는 시크릿을 자동으로 재래핑한 뒤 레지스트리에서 뺍니다.
+</MudText>
+<MudAlert Severity="Severity.Error" Class="mb-4">
+	admin role CMK 제거는 파괴적입니다 - 버킷 버저닝으로 보관된 이전 버전은 그 CMK로만
+	복호화할 수 있어, 제거하면 해당 버전들이 영구히 복구 불가능해집니다(그 버전으로의 롤백이
+	다시는 불가능해짐).
+</MudAlert>
+
+@if (_registrations is null)
+{
+	<MudProgressCircular Color="Color.Default" Indeterminate="true" />
+}
+else
+{
+	@foreach (var role in new[] { CmkRole.Admin, CmkRole.App })
+	{
+		var rows = _registrations.Where(c => c.Role == role).ToList();
+		<MudPaper Class="pa-4 mb-4" MaxWidth="900px">
+			<MudText Typo="Typo.h6" Class="mb-2">@RoleLabel(role) CMK</MudText>
+			@if (role == CmkRole.App)
+			{
+				<MudAlert Severity="Severity.Info" Class="mb-3">
+					app CMK를 등록/승격하면 이미 발급된 모든 App 자격증명의 IAM 정책이 자동으로
+					"등록된 app role CMK 전부"로 갱신된다 - 자격증명을 다시 발급할 필요 없다.
+				</MudAlert>
+			}
+
+			@if (rows.Count == 0)
+			{
+				<MudText Typo="Typo.body2" Class="mb-3">등록된 CMK가 없습니다.</MudText>
+			}
+			else
+			{
+				<MudTable Items="rows" Hover="true" Elevation="0" Dense="true" Class="mb-3">
+					<HeaderContent>
+						<MudTh>등록일</MudTh>
+						<MudTh>ARN</MudTh>
+						<MudTh>상태</MudTh>
+						<MudTh></MudTh>
+					</HeaderContent>
+					<RowTemplate>
+						<MudTd DataLabel="등록일">@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</MudTd>
+						<MudTd DataLabel="ARN">
+							<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+								<MudText Typo="Typo.body2" Style="font-family: monospace; word-break: break-all;">
+									@context.Arn
+								</MudText>
+								<MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+									OnClick="@(() => CopyArnAsync(context.Arn))" title="ARN 복사" />
+							</MudStack>
+						</MudTd>
+						<MudTd DataLabel="상태">
+							<MudChip T="string"
+								Color="@(context.Status == CmkStatus.Active ? Color.Success : Color.Default)"
+								Size="Size.Small">
+								@(context.Status == CmkStatus.Active ? "Active" : "Secondary")
+							</MudChip>
+						</MudTd>
+						<MudTd>
+							@if (context.Status == CmkStatus.Secondary)
+							{
+								<MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mr-1"
+									OnClick="@(() => PromoteAsync(context))">
+									활성으로 승격
+								</MudButton>
+								<MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+									OnClick="@(() => RemoveAsync(context))">
+									제거
+								</MudButton>
+							}
+						</MudTd>
+					</RowTemplate>
+				</MudTable>
+			}
+
+			<MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3"
+				Disabled="@_creating[role]" OnClick="@(() => CreateAsync(role))">
+				@(_creating[role] ? "생성 중..." : "새 CMK 생성")
+			</MudButton>
+		</MudPaper>
+	}
+}
+
+@code {
+	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+	private List<CmkRegistration>? _registrations;
+	private readonly Dictionary<CmkRole, bool> _creating = new()
+	{
+		[CmkRole.Admin] = false,
+		[CmkRole.App] = false
+	};
+
+	protected override async Task OnInitializedAsync()
+	{
+		_registrations = await CmkRegistryService.ListAsync();
+	}
+
+	private async Task<string?> GetCurrentUserIdAsync()
+	{
+		if (AuthenticationStateTask is null)
+		{
+			return null;
+		}
+		var state = await AuthenticationStateTask;
+		return state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+	}
+
+	// ARN을 검색/직접입력받지 않고 이 자리에서 새 CMK를 만들어 곧바로 등록한다(admin identity가
+	// kms:CreateKey 권한을 이미 가지고 있음). role당 여러 개 만든 뒤 "활성으로 승격"으로 고른다.
+	private async Task CreateAsync(CmkRole role)
+	{
+		_creating[role] = true;
+		try
+		{
+			var description = $"S3EnvManager {RoleLabel(role)} CMK ({DateTimeOffset.UtcNow:yyyy-MM-dd} CMK 레지스트리에서 생성)";
+			var arn = await KmsKeyAdministration.CreateKeyAsync(description, KmsAliasConventions.ManagedTag);
+			await KmsKeyAdministration.EnableRotationAsync(arn);
+
+			var actorUserId = await GetCurrentUserIdAsync();
+			await CmkRegistryService.RegisterAsync(role, arn, actorUserId);
+			_registrations = await CmkRegistryService.ListAsync();
+			Snackbar.Add("새 CMK를 생성하고 등록했습니다.", Severity.Success);
+		}
+		catch (Exception ex)
+		{
+			Snackbar.Add($"CMK 생성에 실패했습니다: {ex.Message}", Severity.Error);
+		}
+		finally
+		{
+			_creating[role] = false;
+		}
+	}
+
+	private async Task PromoteAsync(CmkRegistration registration)
+	{
+		var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", $"이 CMK를 활성으로 승격할까요?\n{registration.Arn}");
+		if (!confirmed)
+		{
+			return;
+		}
+
+		try
+		{
+			var actorUserId = await GetCurrentUserIdAsync();
+			await CmkRegistryService.PromoteAsync(registration.CmkId, actorUserId);
+			_registrations = await CmkRegistryService.ListAsync();
+			Snackbar.Add("승격했습니다.", Severity.Success);
+		}
+		catch (Exception ex)
+		{
+			Snackbar.Add($"승격에 실패했습니다: {ex.Message}", Severity.Error);
+		}
+	}
+
+	private async Task RemoveAsync(CmkRegistration registration)
+	{
+		var confirmMessage = registration.Role == CmkRole.Admin
+			? $"이 CMK를 제거할까요? 현재 버전은 활성 CMK로 재래핑되지만, 이 CMK로 감싼 이전 버전(noncurrent)은 " +
+			  "영구히 삭제됩니다 - 그 버전으로의 롤백이 다시는 불가능해집니다. 되돌릴 수 없습니다.\n" + registration.Arn
+			: $"이 CMK를 제거할까요? 이 CMK로 감싼 시크릿은 현재 활성 CMK로 자동 재래핑됩니다.\n{registration.Arn}";
+		var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", confirmMessage);
+		if (!confirmed)
+		{
+			return;
+		}
+
+		try
+		{
+			var actorUserId = await GetCurrentUserIdAsync();
+			await CmkRegistryService.RemoveAsync(registration.CmkId, actorUserId);
+			_registrations = await CmkRegistryService.ListAsync();
+			Snackbar.Add("제거했습니다.", Severity.Success);
+		}
+		catch (Exception ex)
+		{
+			Snackbar.Add($"제거에 실패했습니다: {ex.Message}", Severity.Error);
+		}
+	}
+
+	private static string RoleLabel(CmkRole role) => CmkKeyPolicyNotes.RoleLabel(role);
+
+	private async Task CopyArnAsync(string arn)
+	{
+		await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", arn);
+		Snackbar.Add("ARN을 클립보드에 복사했습니다.", Severity.Success);
+	}
+}

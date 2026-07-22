@@ -1,0 +1,143 @@
+@page "/admin/db-backup-account"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = IdentityRoleNames.Administrator)]
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using S3EnvManager.Database
+@using S3EnvManager.Web.Services
+
+@inject IDbBackupAccountService DbBackupAccountService
+@inject IJSRuntime JsRuntime
+@inject ISnackbar Snackbar
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>DB 백업 계정</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">DB 백업 계정</MudText>
+<MudText Typo="Typo.body2" Class="mb-2">
+	pg_dump 전용 읽기 전용 Postgres 역할입니다 - 계정이 없으면 앱이 처음 기동할 때 자동으로
+	만들고, 이후 재기동해도 그대로 유지됩니다.
+</MudText>
+<MudAlert Severity="Severity.Warning" Class="mb-4">
+	재발급하면 즉시 비밀번호가 바뀝니다(무중단 로테이션 미지원) - pg_dump 자동화가 쓰는
+	비밀번호도 함께 갱신하세요.
+</MudAlert>
+
+@if (!_loaded)
+{
+	<MudProgressCircular Color="Color.Default" Indeterminate="true" />
+}
+else if (_info is { } info)
+{
+	<MudPaper Class="pa-4 mb-4" MaxWidth="600px" Style="width: 100%;">
+		<MudStack Row="true" Justify="Justify.SpaceBetween" Class="py-1">
+			<MudText Typo="Typo.body2">사용자명</MudText>
+			<MudText Typo="Typo.body2" Style="font-family: monospace;">@info.Username</MudText>
+		</MudStack>
+		<MudStack Row="true" Justify="Justify.SpaceBetween" Class="py-1">
+			<MudText Typo="Typo.body2">마지막 회전</MudText>
+			<MudText Typo="Typo.body2">@info.RotatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</MudText>
+		</MudStack>
+
+		<MudStack Row="true" Class="mt-4" Spacing="2">
+			@if (_revealedPassword is null)
+			{
+				<MudButton Variant="Variant.Outlined" OnClick="RevealAsync">비밀번호 보기</MudButton>
+			}
+			else
+			{
+				<MudTextField Value="@_revealedPassword" ReadOnly="true" Style="font-family: monospace;" />
+				<MudButton Variant="Variant.Outlined"
+					StartIcon="@Icons.Material.Filled.ContentCopy"
+					OnClick="CopyAsync">복사</MudButton>
+			}
+			<MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="RotateNowAsync">지금 재발급</MudButton>
+		</MudStack>
+	</MudPaper>
+}
+else
+{
+	<MudAlert Severity="Severity.Info">
+		아직 계정이 생성되지 않았습니다 - admin CMK가 먼저 등록돼 있어야 합니다(비밀번호를
+		암호화해 저장하는 데 필요). CMK 등록 후 앱을 재기동하거나 아래에서 지금 발급하세요.
+	</MudAlert>
+	<MudButton Class="mt-4"
+		Variant="Variant.Filled"
+		Color="Color.Primary"
+		OnClick="RotateNowAsync">지금 발급</MudButton>
+}
+
+@code {
+	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+	private DbBackupAccountInfo? _info;
+	private bool _loaded;
+	private string? _revealedPassword;
+
+	private async Task<string?> GetCurrentUserIdAsync()
+	{
+		if (AuthenticationStateTask is null)
+		{
+			return null;
+		}
+		var state = await AuthenticationStateTask;
+		return state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+	}
+
+	protected override async Task OnInitializedAsync()
+	{
+		await ReloadAsync();
+	}
+
+	private async Task ReloadAsync()
+	{
+		_info = await DbBackupAccountService.GetCurrentAsync();
+		_loaded = true;
+		_revealedPassword = null;
+	}
+
+	private async Task CopyAsync()
+	{
+		await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _revealedPassword);
+		Snackbar.Add("클립보드에 복사했습니다.", Severity.Success);
+	}
+
+	private async Task RevealAsync()
+	{
+		try
+		{
+			var actorUserId = await GetCurrentUserIdAsync();
+			_revealedPassword = await DbBackupAccountService.RevealCurrentPasswordAsync(actorUserId);
+		}
+		catch (Exception ex)
+		{
+			Snackbar.Add($"조회에 실패했습니다: {ex.Message}", Severity.Error);
+		}
+	}
+
+	private async Task RotateNowAsync()
+	{
+		var confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+			"지금 재발급하면 이전 비밀번호는 즉시 무효화됩니다. pg_dump 자동화가 쓰는 비밀번호도 함께 갱신해야 합니다. 계속할까요?");
+		if (!confirmed)
+		{
+			return;
+		}
+
+		try
+		{
+			await DbBackupAccountService.RotateNowAsync();
+			await ReloadAsync();
+			Snackbar.Add("재발급했습니다.", Severity.Success);
+		}
+		catch (Exception ex)
+		{
+			Snackbar.Add($"재발급에 실패했습니다: {ex.Message}", Severity.Error);
+		}
+	}
+}

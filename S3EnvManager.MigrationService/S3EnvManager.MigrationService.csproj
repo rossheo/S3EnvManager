@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>6b8fc0fa-867f-442f-b197-edd13f7e0dce</UserSecretsId>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\S3EnvManager.Database\S3EnvManager.Database.csproj" />
+    <ProjectReference Include="..\S3EnvManager.ServiceDefaults\S3EnvManager.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

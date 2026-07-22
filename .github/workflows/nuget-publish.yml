@@ -1,0 +1,71 @@
+name: Publish NuGet packages
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  pack-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # 버전은 Directory.Build.targets의 GitInformation 타깃(major.YYMM.이번달커밋수)이
+      # 자동 산출하므로 -p:Version=을 넘기지 않는다.
+      - name: Pack S3EnvManager.Sops
+        run: dotnet pack S3EnvManager.Sops/S3EnvManager.Sops.csproj -c Release -o ./nupkgs
+
+      - name: Pack S3EnvManager.Configuration
+        run: dotnet pack S3EnvManager.Configuration/S3EnvManager.Configuration.csproj -c Release -o ./nupkgs
+
+      # Configuration이 Sops에 ProjectReference로 의존하므로, Sops를 먼저 push해
+      # 의존 패키지가 먼저 존재하도록 순서를 보장한다(matrix로 병렬화하지 않는 이유).
+      - name: Push S3EnvManager.Sops
+        run: >
+          dotnet nuget push ./nupkgs/S3EnvManager.Sops.*.nupkg
+          --source https://nuget.pkg.github.com/rossheo/index.json
+          --api-key ${{ secrets.GITHUB_TOKEN }}
+          --skip-duplicate
+
+      - name: Push S3EnvManager.Configuration
+        run: >
+          dotnet nuget push ./nupkgs/S3EnvManager.Configuration.*.nupkg
+          --source https://nuget.pkg.github.com/rossheo/index.json
+          --api-key ${{ secrets.GITHUB_TOKEN }}
+          --skip-duplicate
+
+  cleanup:
+    needs: pack-and-push
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [S3EnvManager.Sops, S3EnvManager.Configuration]
+    steps:
+      # GitHub Packages는 개인 계정 소유 패키지의 버전 삭제를 GITHUB_TOKEN으로 허용하지
+      # 않으므로 read:packages/delete:packages 권한의 PAT(GHCR_DELETE_PAT 시크릿)가 필요하다.
+      # 이 두 패키지는 현재 내부에서만 소비되지만, main push마다 버전이 늘어나는 트리거와
+      # 결합했을 때 keep 값이 너무 낮으면 내부 소비자가 최근에 restore/빌드한 lock 파일이
+      # 가리키는 버전이 다음 정리 주기에 삭제될 여지가 있어, 컨테이너 이미지(10개)보다
+      # 여유를 둔 30개를 유지한다.
+      - name: Delete old package versions beyond the last 30
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: nuget
+          min-versions-to-keep: 30
+          token: ${{ secrets.GHCR_DELETE_PAT }}

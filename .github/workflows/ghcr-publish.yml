@@ -1,0 +1,97 @@
+name: Publish container images
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - project: S3EnvManager.Web/S3EnvManager.Web.csproj
+            image: s3envmanager-web
+          - project: S3EnvManager.MigrationService/S3EnvManager.MigrationService.csproj
+            image: s3envmanager-migrationservice
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # main 브랜치 push도 트리거 대상이라 github.ref_name이 태그명이 아닐 수 있다(브랜치
+      # push면 "main"). Directory.Build.targets의 GitInformation 타깃과 동일한 공식
+      # (major.YYMM.이번달커밋수)으로 버전을 직접 계산해 로컬 빌드의 AssemblyVersion과
+      # CI가 퍼블리시하는 이미지 태그가 항상 일치하게 한다 - 태그 push로 트리거된 경우에도
+      # github.ref_name 대신 이 값을 그대로 쓴다(둘 다 같은 날 같은 커밋 수 기준이면 동일).
+      - name: Compute version
+        id: version
+        run: |
+          MAJOR=$(jq -r '.major' version.json)
+          YEAR=$(date -u +%Y)
+          MONTH=$(date -u +%m)
+          DATE_VERSION=$((10#${YEAR:1}${MONTH}))
+          MONTH_START="$(date -u +%Y-%m-01)T00:00:00Z"
+          COUNT=$(git rev-list --count --since="$MONTH_START" HEAD)
+          echo "value=$MAJOR.$DATE_VERSION.$COUNT" >> "$GITHUB_OUTPUT"
+
+      # ContainerImageTags(복수형)의 세미콜론 구분 목록이 이 SDK 버전에서 제대로 파싱되지
+      # 않아(로컬 검증 시 CONTAINER2010 오류), 단일 태그(ContainerImageTag)로 두 번
+      # 퍼블리시한다. 두 번째 호출은 컴파일 산출물이 이미 있어 컨테이너화/푸시만 다시
+      # 수행하므로 비용이 작다.
+      - name: Publish container image (version tag)
+        run: >
+          dotnet publish ${{ matrix.project }}
+          -c Release
+          --os linux --arch x64
+          -t:PublishContainer
+          -p:ContainerRegistry=ghcr.io
+          -p:ContainerRepository=${{ github.repository_owner }}/${{ matrix.image }}
+          -p:ContainerImageTag=${{ steps.version.outputs.value }}
+
+      - name: Publish container image (latest tag)
+        run: >
+          dotnet publish ${{ matrix.project }}
+          -c Release
+          --os linux --arch x64
+          -t:PublishContainer
+          -p:ContainerRegistry=ghcr.io
+          -p:ContainerRepository=${{ github.repository_owner }}/${{ matrix.image }}
+          -p:ContainerImageTag=latest
+
+  cleanup:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: [s3envmanager-web, s3envmanager-migrationservice]
+    steps:
+      # GHCR은 개인 계정 소유 패키지의 버전 삭제를 GITHUB_TOKEN으로 허용하지 않으므로
+      # read:packages/delete:packages 권한의 PAT(GHCR_DELETE_PAT 시크릿)가 필요하다.
+      - name: Delete old image versions beyond the last 10
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.image }}
+          package-type: container
+          min-versions-to-keep: 10
+          token: ${{ secrets.GHCR_DELETE_PAT }}

@@ -1,0 +1,226 @@
+@page "/apps"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{IdentityRoleNames.Administrator},{IdentityRoleNames.Member}")]
+@implements IDisposable
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using S3EnvManager.Database
+@using S3EnvManager.Database.Models
+@using S3EnvManager.Web.Services
+
+@inject IAppRegistrationService AppRegistrationService
+@inject IAppDeletionService AppDeletionService
+@inject ISecretBundleService SecretBundleService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JsRuntime
+@inject ISnackbar Snackbar
+@inject ILogger<Index> Logger
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>App 목록</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+	<MudText Typo="Typo.h4">App 목록</MudText>
+	<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+		OnClick="@(() => NavigationManager.NavigateTo("/apps/register"))">
+		App 등록
+	</MudButton>
+</MudStack>
+
+@if (_apps is null)
+{
+	<MudProgressCircular Color="Color.Default" Indeterminate="true" />
+}
+else if (_apps.Count == 0)
+{
+	<MudText Typo="Typo.body1">등록된 App이 없습니다.</MudText>
+}
+else
+{
+	<MudTextField T="string" @bind-Value="_searchText" @bind-Value:after="@(() => _table?.NavigateTo(0))"
+		Label="App 검색" Placeholder="이름으로 검색" Adornment="Adornment.Start"
+		AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" Class="mb-4" />
+
+	<MudTable @ref="_table" Items="_apps" Filter="@FilterFunc" Hover="true" Elevation="0">
+		<HeaderContent>
+			<MudTh>이름</MudTh>
+			<MudTh>환경</MudTh>
+			<MudTh>등록일</MudTh>
+			<MudTh></MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTd DataLabel="이름">@context.Name</MudTd>
+			<MudTd DataLabel="환경">
+				<MudStack Row="false" Spacing="1">
+					@foreach (var env in context.Envs.OrderBy(e => e.Name))
+					{
+						<MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+							@{ var editHref = $"/apps/{context.Id}/edit/{env.Name.ToObjectSegment()}"; }
+							<MudChip T="string" Size="Size.Small" Color="@EnvColor(env.Name)" Variant="Variant.Filled"
+								OnClick="@(() => NavigationManager.NavigateTo(editHref))">
+								@($"{EnvLabel(env.Name)}({FormatCount(GetKeyCount(env.Id, SecretBundleKind.Base))})")
+							</MudChip>
+							<MudTooltip Text="우선순위가 가장 높은 오버라이드 레이어를 편집합니다.">
+								<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+									OnClick="@(() => NavigationManager.NavigateTo($"{editHref}/overwrite"))">
+									overwrite(@FormatCount(GetKeyCount(env.Id, SecretBundleKind.Overwrite)))
+								</MudChip>
+							</MudTooltip>
+						</MudStack>
+					}
+				</MudStack>
+			</MudTd>
+			<MudTd DataLabel="등록일">@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+			<MudTd>
+				<MudTooltip Text="발급된 자격증명 보기">
+					<MudIconButton Icon="@Icons.Material.Filled.VpnKey" Size="Size.Small"
+						OnClick="@(() => NavigationManager.NavigateTo($"/apps/{context.Id}/credentials"))" />
+				</MudTooltip>
+				<MudTooltip Text="App 삭제">
+					<MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" Color="Color.Error"
+						OnClick="@(() => DeleteAsync(context.Id, context.Name))" />
+				</MudTooltip>
+			</MudTd>
+		</RowTemplate>
+		<PagerContent>
+			<MudTablePager RowsPerPageString="페이지당 App 수:" InfoFormat="{first_item}-{last_item} / {all_items}" />
+		</PagerContent>
+	</MudTable>
+}
+
+@code {
+	private List<Database.Models.App>? _apps;
+	private readonly Dictionary<(Guid EnvId, SecretBundleKind Kind), Int32> _keyCounts = [];
+	private MudTable<Database.Models.App>? _table;
+	private string _searchText = "";
+
+	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+	private async Task<string?> GetCurrentUserIdAsync()
+	{
+		if (AuthenticationStateTask is null)
+		{
+			return null;
+		}
+		var state = await AuthenticationStateTask;
+		return state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+	}
+
+	private CancellationTokenSource? _loadCountsCts;
+
+	protected override async Task OnInitializedAsync()
+	{
+		_apps = await AppRegistrationService.ListActiveAsync();
+	}
+
+	protected override void OnAfterRender(bool firstRender)
+	{
+		// 키 개수는 표를 먼저 그린 뒤 백그라운드로 채운다(S3 호출이 App×Env×2번씩 쌓임).
+		if (firstRender && _apps is { Count: > 0 })
+		{
+			_loadCountsCts = new CancellationTokenSource();
+			_ = LoadKeyCountsAsync(_apps, _loadCountsCts.Token);
+		}
+	}
+
+	private async Task LoadKeyCountsAsync(List<Database.Models.App> apps, CancellationToken cancellationToken)
+	{
+		foreach (var app in apps)
+		{
+			foreach (var env in app.Envs)
+			{
+				if (cancellationToken.IsCancellationRequested)
+				{
+					return;
+				}
+
+				// 한 App/Env 실패로 이 fire-and-forget 태스크 전체가 죽지 않도록 개별 try.
+				try
+				{
+					var baseCount = await SecretBundleService.GetKeyCountAsync(
+						app, env, SecretBundleKind.Base, cancellationToken);
+					var overwriteCount = await SecretBundleService.GetKeyCountAsync(
+						app, env, SecretBundleKind.Overwrite, cancellationToken);
+					_keyCounts[(env.Id, SecretBundleKind.Base)] = baseCount;
+					_keyCounts[(env.Id, SecretBundleKind.Overwrite)] = overwriteCount;
+				}
+				catch (Exception ex) when (ex is not OperationCanceledException)
+				{
+					Logger.LogWarning(ex, "App {AppId} Env {EnvId} 키 개수 조회에 실패했습니다.", app.Id, env.Id);
+				}
+
+				if (cancellationToken.IsCancellationRequested)
+				{
+					return;
+				}
+				await InvokeAsync(StateHasChanged);
+			}
+		}
+	}
+
+	private Int32? GetKeyCount(Guid envId, SecretBundleKind kind) =>
+		_keyCounts.TryGetValue((envId, kind), out var count) ? count : null;
+
+	private static string FormatCount(Int32? count) => count?.ToString() ?? "…";
+
+	public void Dispose()
+	{
+		_loadCountsCts?.Cancel();
+		_loadCountsCts?.Dispose();
+	}
+
+	private bool FilterFunc(Database.Models.App app) => MatchesSearch(app, _searchText);
+
+	// MudTable 인스턴스 없이도 검증할 수 있도록 순수 함수로 분리한다.
+	public static bool MatchesSearch(Database.Models.App app, string? searchText)
+	{
+		if (string.IsNullOrWhiteSpace(searchText))
+		{
+			return true;
+		}
+		return app.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private async Task DeleteAsync(Guid appId, string appName)
+	{
+		var confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+			$"'{appName}'을(를) 삭제할까요? 발급된 자격증명은 즉시 폐기되고, 저장된 시크릿은 60일 뒤 실제로 삭제됩니다.");
+		if (!confirmed)
+		{
+			return;
+		}
+
+		try
+		{
+			var actorUserId = await GetCurrentUserIdAsync();
+			await AppDeletionService.DeleteAsync(appId, actorUserId);
+			_apps = await AppRegistrationService.ListActiveAsync();
+			Snackbar.Add($"'{appName}'을(를) 삭제했습니다.", Severity.Success);
+		}
+		catch (Exception ex)
+		{
+			Snackbar.Add($"삭제에 실패했습니다: {ex.Message}", Severity.Error);
+		}
+	}
+
+	private static string EnvLabel(EnvName name) => name switch
+	{
+		EnvName.Dev => "DEV",
+		EnvName.Staging => "STAGING",
+		EnvName.Product => "PRODUCT",
+		_ => name.ToString().ToUpperInvariant(),
+	};
+
+	private static Color EnvColor(EnvName name) => name switch
+	{
+		EnvName.Dev => Color.Default,
+		EnvName.Staging => Color.Info,
+		EnvName.Product => Color.Primary,
+		_ => Color.Default,
+	};
+}

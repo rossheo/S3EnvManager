@@ -1,0 +1,210 @@
+@page "/"
+@page "/dashboard"
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using S3EnvManager.Database
+@using S3EnvManager.Database.Models
+@using S3EnvManager.Sops
+@using S3EnvManager.Web.Services
+
+@inject IAppRegistrationService AppRegistrationService
+@inject IBucketHealthStatusStore BucketHealthStatusStore
+@inject UserManager<ApplicationUser> UserManager
+@inject ApplicationDbContext Db
+@inject IRuntimeAwsCredentialsOverride AdminCredentialOverride
+@inject ICmkRegistryService CmkRegistryService
+
+<PageTitle>대시보드</PageTitle>
+
+<AuthorizeView>
+	<Authorized>
+		<MudText Typo="Typo.h4" Class="mb-4">대시보드</MudText>
+	</Authorized>
+	<NotAuthorized>
+		<MudText Typo="Typo.h3" GutterBottom="true">S3EnvManager</MudText>
+		<MudText Class="mb-4">App의 시크릿을 S3 + KMS 기반으로 안전하게 관리합니다.</MudText>
+		<MudAlert Severity="Severity.Info">
+			로그인하면 등록된 App, 버킷 상태 등 대시보드 정보를 볼 수 있습니다.
+		</MudAlert>
+	</NotAuthorized>
+</AuthorizeView>
+
+<AuthorizeView Roles="@($"{IdentityRoleNames.Administrator},{IdentityRoleNames.Member}")">
+	<Authorized>
+		@if (_loaded)
+		{
+			<AuthorizeView Roles="@IdentityRoleNames.Administrator" Context="setupBannerContext">
+				<Authorized>
+					@if (_bootstrapIncomplete)
+					{
+						<MudAlert Severity="Severity.Warning" Class="mb-4">
+							부트스트랩이 아직 끝나지 않았습니다(admin 자격증명 또는 CMK가
+							없습니다) - <MudLink Href="settings/bootstrap">자동 프로비저닝</MudLink>
+							화면에서 실행하세요.
+						</MudAlert>
+					}
+				</Authorized>
+			</AuthorizeView>
+
+			<MudGrid Class="mb-4">
+				<MudItem xs="12" sm="4">
+					<MudPaper Class="pa-4" Elevation="0" Outlined="true">
+						<MudText Typo="Typo.subtitle2">등록된 App</MudText>
+						<MudText Typo="Typo.h4">@_appCount</MudText>
+						<MudText Typo="Typo.caption">환경 @(_envCount)개</MudText>
+					</MudPaper>
+				</MudItem>
+				<AuthorizeView Roles="@IdentityRoleNames.Administrator" Context="adminStatContext">
+					<Authorized>
+						<MudItem xs="12" sm="4">
+							<MudPaper Class="pa-4" Elevation="0" Outlined="true">
+								<MudText Typo="Typo.subtitle2">버킷 상태</MudText>
+								<MudText Typo="Typo.h4">@_healthyBucketCount / @_bucketCount</MudText>
+								<MudText Typo="Typo.caption">정상 / 전체 (버저닝·PAB·Object Ownership·Lifecycle 기준)</MudText>
+							</MudPaper>
+						</MudItem>
+						<MudItem xs="12" sm="4">
+							<MudPaper Class="pa-4" Elevation="0" Outlined="true">
+								<MudText Typo="Typo.subtitle2">사용자</MudText>
+								<MudText Typo="Typo.h4">@_userCount</MudText>
+								<MudText Typo="Typo.caption">관리자 @_administratorCount · 멤버 @_memberCount · 게스트 @_guestCount</MudText>
+							</MudPaper>
+						</MudItem>
+					</Authorized>
+				</AuthorizeView>
+			</MudGrid>
+
+			<MudText Typo="Typo.h6" Class="mb-2">바로가기</MudText>
+			<MudStack Row="true" Wrap="Wrap.Wrap" Class="mb-4" Spacing="2">
+				<MudButton Variant="Variant.Outlined"
+					StartIcon="@Icons.Material.Filled.Apps"
+					Href="/apps">App 목록</MudButton>
+				<AuthorizeView Roles="@IdentityRoleNames.Administrator" Context="adminLinkContext">
+					<Authorized>
+						<MudButton Variant="Variant.Outlined"
+							StartIcon="@Icons.Material.Filled.CloudQueue"
+							Href="/bucket-status">버킷 상태</MudButton>
+						<MudButton Variant="Variant.Outlined"
+							StartIcon="@Icons.Material.Filled.People"
+							Href="/admin/users">사용자 역할 관리</MudButton>
+						<MudButton Variant="Variant.Outlined"
+							StartIcon="@Icons.Material.Filled.History"
+							Href="/admin/audit-log">감사 로그</MudButton>
+						<MudButton Variant="Variant.Outlined"
+							StartIcon="@Icons.Material.Filled.VpnKey"
+							Href="/admin/cmk-registry">CMK 레지스트리</MudButton>
+					</Authorized>
+				</AuthorizeView>
+			</MudStack>
+
+			<AuthorizeView Roles="@IdentityRoleNames.Administrator" Context="adminLogContext">
+				<Authorized>
+					<MudText Typo="Typo.h6" Class="mb-2">최근 활동</MudText>
+					@if (_recentAuditLogs.Count == 0)
+					{
+						<MudText Typo="Typo.body2">아직 기록된 이벤트가 없습니다.</MudText>
+					}
+					else
+					{
+						<MudTable Items="_recentAuditLogs" Hover="true" Elevation="0" Dense="true" Context="logRow">
+							<HeaderContent>
+								<MudTh>발생 시각</MudTh>
+								<MudTh>이벤트</MudTh>
+								<MudTh>행위자</MudTh>
+							</HeaderContent>
+							<RowTemplate Context="logRow">
+								<MudTd DataLabel="발생 시각">@logRow.OccurredAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+								<MudTd DataLabel="이벤트">@logRow.EventType</MudTd>
+								<MudTd DataLabel="행위자">@(logRow.ActorEmail ?? "(시스템)")</MudTd>
+							</RowTemplate>
+						</MudTable>
+					}
+				</Authorized>
+			</AuthorizeView>
+		}
+		else
+		{
+			<MudProgressCircular Color="Color.Default" Indeterminate="true" />
+		}
+	</Authorized>
+	<NotAuthorized>
+		<MudAlert Severity="Severity.Info">
+			아직 시크릿 관리 권한이 없습니다. 관리자가 역할을 배정하면 App/버킷 정보가 여기에 표시됩니다.
+		</MudAlert>
+	</NotAuthorized>
+</AuthorizeView>
+
+@code {
+	private bool _loaded;
+	private int _appCount;
+	private int _envCount;
+	private int _bucketCount;
+	private int _healthyBucketCount;
+	private int _userCount;
+	private int _administratorCount;
+	private int _memberCount;
+	private int _guestCount;
+	private List<AuditRow> _recentAuditLogs = [];
+	private bool _bootstrapIncomplete;
+
+	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+	protected override async Task OnInitializedAsync()
+	{
+		if (AuthenticationStateTask is null)
+		{
+			return;
+		}
+
+		var user = (await AuthenticationStateTask).User;
+		var isAdministrator = user.IsInRole(IdentityRoleNames.Administrator);
+		var isMember = user.IsInRole(IdentityRoleNames.Member);
+		if (!isAdministrator && !isMember)
+		{
+			return;
+		}
+
+		var apps = await AppRegistrationService.ListActiveAsync();
+		_appCount = apps.Count;
+		_envCount = apps.Sum(a => a.Envs.Count);
+
+		var reports = BucketHealthStatusStore.GetAll();
+		_bucketCount = reports.Count;
+		_healthyBucketCount = reports.Count(r =>
+			r.VersioningEnabled && r.PublicAccessBlocked && r.ObjectOwnershipEnforced && r.LifecycleRuleConfigured);
+
+		if (isAdministrator)
+		{
+			var registrations = await CmkRegistryService.ListAsync();
+			var hasActiveAdminCmk = registrations.Any(r => r.Role == CmkRole.Admin && r.Status == CmkStatus.Active);
+			var hasActiveAppCmk = registrations.Any(r => r.Role == CmkRole.App && r.Status == CmkStatus.Active);
+			_bootstrapIncomplete = !AdminCredentialOverride.IsSet || !hasActiveAdminCmk || !hasActiveAppCmk;
+
+			_userCount = await UserManager.Users.CountAsync();
+			_administratorCount = (await UserManager.GetUsersInRoleAsync(IdentityRoleNames.Administrator)).Count;
+			_memberCount = (await UserManager.GetUsersInRoleAsync(IdentityRoleNames.Member)).Count;
+			_guestCount = (await UserManager.GetUsersInRoleAsync(IdentityRoleNames.Guest)).Count;
+
+			var logs = await Db.AuditLogs.AsNoTracking()
+				.OrderByDescending(a => a.OccurredAt)
+				.Take(5)
+				.ToListAsync();
+			var actorIds = logs.Where(l => l.ActorUserId is not null).Select(l => l.ActorUserId!).Distinct().ToList();
+			var actorEmails = await Db.Users.AsNoTracking()
+				.Where(u => actorIds.Contains(u.Id))
+				.ToDictionaryAsync(u => u.Id, u => u.Email);
+			_recentAuditLogs = logs.Select(l => new AuditRow(
+				l.OccurredAt,
+				l.EventType,
+				l.ActorUserId is not null && actorEmails.TryGetValue(l.ActorUserId, out var email)
+					? email
+					: null)).ToList();
+		}
+
+		_loaded = true;
+	}
+
+	private sealed record AuditRow(DateTimeOffset OccurredAt, string EventType, string? ActorEmail);
+}

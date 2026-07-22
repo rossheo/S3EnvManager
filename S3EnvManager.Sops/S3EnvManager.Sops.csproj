@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- 별도 NuGet 패키지로 배포한다. sops dotenv 포맷 암/복호화 코덱
+         전용(값별 AES-256-GCM, MAC 계산/검증, KMS envelope encryption) - S3 접근이나
+         dotenv 키 파싱 같은 상위 로직은 모른다. -->
+    <PackageId>S3EnvManager.Sops</PackageId>
+    <Description>S3EnvManager가 쓰는 sops dotenv 포맷 암/복호화 코덱(AES-256-GCM 값별 암호화, KMS envelope encryption). S3EnvManager.Configuration이 내부적으로 사용한다.</Description>
+    <RepositoryUrl>https://github.com/rossheo/S3EnvManager.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/rossheo/S3EnvManager</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>s3envmanager;sops;secrets;kms</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.KeyManagementService" />
+    <PackageReference Include="BouncyCastle.Cryptography" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

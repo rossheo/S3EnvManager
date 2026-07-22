@@ -1,0 +1,41 @@
+<Project>
+
+	<PropertyGroup>
+		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageVersion Include="Aspire.Hosting.AWS" Version="13.5.0" />
+		<PackageVersion Include="Aspire.Hosting.Docker" Version="13.4.6" />
+		<PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
+		<PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.4.6" />
+		<PackageVersion Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.100.5" />
+		<PackageVersion Include="AWSSDK.IdentityManagement" Version="4.0.100.5" />
+		<PackageVersion Include="AWSSDK.KeyManagementService" Version="4.0.100.5" />
+		<PackageVersion Include="AWSSDK.S3" Version="4.0.101.3" />
+		<PackageVersion Include="AWSSDK.SecurityToken" Version="4.0.100.5" />
+		<PackageVersion Include="BouncyCastle.Cryptography" Version="2.6.2" />
+		<PackageVersion Include="coverlet.collector" Version="10.0.1" />
+		<PackageVersion Include="Extensions.MudBlazor.StaticInput" Version="4.1.0" />
+		<PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
+		<PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.8.0" />
+		<PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+		<PackageVersion Include="MudBlazor" Version="9.7.0" />
+		<PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+		<PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+		<PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+		<PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+		<PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+		<PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
+		<PackageVersion Include="xunit" Version="2.9.3" />
+		<PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+	</ItemGroup>
+
+</Project>

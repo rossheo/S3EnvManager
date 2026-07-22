@@ -1,0 +1,13 @@
+<Project>
+	<!-- SDK(Microsoft.NET.Sdk)가 Version/PackageVersion 기본값("1.0.0")을 채우기 전에
+	     평가되므로, 여기서 미리 캡처해 두면 Directory.Build.targets에서 "dotnet pack
+	     -p:Version=/-p:PackageVersion=으로 명시적으로 넘겼는지"를 SDK 기본값 문자열과
+	     비교하지 않고도 판별할 수 있다. PackageVersion은 비어 있으면 SDK가 정적 평가
+	     단계에서 이미 Version 값(기본값 포함)을 그대로 미러링해 버리므로, 그 시점보다
+	     앞선 여기서 캡처해야만 "사용자가 명시했는지"를 값 자체로는 구분할 수 없는 문제를
+	     피할 수 있다. -->
+	<PropertyGroup>
+		<S3EnvManagerVersionExplicit Condition="'$(Version)' != ''">true</S3EnvManagerVersionExplicit>
+		<S3EnvManagerPackageVersionExplicit Condition="'$(PackageVersion)' != ''">true</S3EnvManagerPackageVersionExplicit>
+	</PropertyGroup>
+</Project>

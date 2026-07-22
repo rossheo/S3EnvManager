@@ -1,0 +1,122 @@
+@page "/admin/users"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = IdentityRoleNames.Administrator)]
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using S3EnvManager.Database
+@using S3EnvManager.Web.Services
+
+@inject IUserRoleService UserRoleService
+@inject ISnackbar Snackbar
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>사용자 역할 관리</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">사용자 역할 관리</MudText>
+
+@if (_errorMessage is not null)
+{
+	<MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+}
+
+@if (_users is null)
+{
+	<MudProgressCircular Color="Color.Default" Indeterminate="true" />
+}
+else
+{
+	<MudTable Items="_users" Hover="true" Elevation="0">
+		<HeaderContent>
+			<MudTh>이메일</MudTh>
+			<MudTh>역할</MudTh>
+			<MudTh>계정 잠김</MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTd DataLabel="이메일">
+				@context.Email
+				@if (context.UserId == _currentUserId)
+				{
+					<MudChip T="string" Size="Size.Small" Color="Color.Info" Class="ml-2">나</MudChip>
+				}
+			</MudTd>
+			<MudTd DataLabel="역할">
+				<MudSelect T="string" Value="@(context.Role ?? string.Empty)"
+					ValueChanged="@(newRole => ChangeRoleAsync(context.UserId, newRole))"
+					Disabled="@(context.UserId == _currentUserId)" Style="width: 180px;">
+					<MudSelectItem Value="@IdentityRoleNames.Administrator">Administrator</MudSelectItem>
+					<MudSelectItem Value="@IdentityRoleNames.Member">Member</MudSelectItem>
+					<MudSelectItem Value="@IdentityRoleNames.Guest">Guest</MudSelectItem>
+				</MudSelect>
+			</MudTd>
+			<MudTd DataLabel="계정 잠김">
+				<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+					<MudSwitch T="bool" Value="@context.IsLockedOut"
+						ValueChanged="@(lockedOut => SetLockedOutAsync(context.UserId, lockedOut))"
+						Color="Color.Error" Disabled="@(context.UserId == _currentUserId)" />
+					<MudText Typo="Typo.body2" Color="@(context.IsLockedOut ? Color.Error : Color.Default)">
+						@(context.IsLockedOut ? "잠김" : "활성")
+					</MudText>
+				</MudStack>
+			</MudTd>
+		</RowTemplate>
+	</MudTable>
+}
+
+@code {
+	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+	private List<UserWithRole>? _users;
+	private string? _errorMessage;
+	private string? _currentUserId;
+
+	protected override async Task OnInitializedAsync()
+	{
+		if (AuthenticationStateTask is not null)
+		{
+			var state = await AuthenticationStateTask;
+			_currentUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+		}
+
+		await ReloadAsync();
+	}
+
+	private async Task ReloadAsync()
+	{
+		_users = await UserRoleService.ListAsync();
+	}
+
+	private async Task ChangeRoleAsync(string userId, string newRole)
+	{
+		_errorMessage = null;
+		try
+		{
+			await UserRoleService.SetRoleAsync(userId, newRole);
+			await ReloadAsync();
+			Snackbar.Add("역할을 변경했습니다.", Severity.Success);
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"역할 변경에 실패했습니다: {ex.Message}";
+		}
+	}
+
+	private async Task SetLockedOutAsync(string userId, bool lockedOut)
+	{
+		_errorMessage = null;
+		try
+		{
+			await UserRoleService.SetLockedOutAsync(userId, lockedOut);
+			await ReloadAsync();
+			Snackbar.Add(lockedOut ? "계정을 잠갔습니다." : "계정 잠금을 해제했습니다.", Severity.Success);
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"잠금 상태 변경에 실패했습니다: {ex.Message}";
+		}
+	}
+}
