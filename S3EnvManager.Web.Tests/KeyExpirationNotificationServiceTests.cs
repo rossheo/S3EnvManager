@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
+using S3EnvManager.Sops;
 using S3EnvManager.Web.Services;
 using Xunit;
 
@@ -113,6 +114,44 @@ public class KeyExpirationNotificationServiceTests
 	}
 
 	[Fact]
+	public async Task Notifies_ForExpiringSharedSecret_MergedIntoSameMessage()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var now = DateTimeOffset.UtcNow;
+		var timeProvider = new FakeTimeProvider(now);
+		await using var db = CreateDbContext();
+		await ResetNotificationTablesAsync(db);
+		var user = await RegisterUserAsync(db);
+		var webhookUrl = UniqueWebhookUrl();
+		await SetUserNotificationSettingsAsync(db, user.Id, webhookUrl, dDayDays: 7);
+
+		var kms = new FakeKmsKeyOperations();
+		await GetOrCreateActiveAdminCmkAsync(db);
+		var sharedSecretService = new SharedSecretService(
+			db, new AppSecretKeyCipher(db, kms, new DataKeyCache()), new AuditLogger(db),
+			new SecretBundleService(
+				db, new FakeSecretObjectStore(), kms, kms, new AuditLogger(db),
+				new PrimaryStorageSettingsStore(db),
+				new Microsoft.Extensions.Caching.Memory.MemoryCache(
+					new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+		var sharedSecretName = "ext-api-" + Guid.NewGuid().ToString("N")[..8];
+		await sharedSecretService.CreateAsync(
+			sharedSecretName, null, "v1", now.AddDays(3), actorUserId: null);
+
+		var notifier = new FakeDiscordNotifier();
+		await KeyExpirationNotificationService.CheckAndNotifyAsync(
+			db, notifier, DataProtection, timeProvider, CancellationToken.None);
+
+		var sent = Assert.Single(notifier.Sent, s => s.WebhookUrl == webhookUrl);
+		Assert.Contains("[공유]", sent.Content);
+		Assert.Contains(sharedSecretName, sent.Content);
+	}
+
+	[Fact]
 	public async Task Skips_WhenNoExpirationFallsInsideWindow()
 	{
 		if (!await IsEnvironmentAvailableAsync())
@@ -147,6 +186,31 @@ public class KeyExpirationNotificationServiceTests
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"KeyExpirations\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"UserNotificationAlertSwitches\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"UserNotificationSettings\"");
+		// SharedSecrets도 CheckAndNotifyAsync가 시스템 전체를 스캔하는 대상이라 함께 비운다
+		// (FK Restrict 때문에 참조 행부터 지운다).
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecretReferences\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecretAppGrants\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecrets\"");
+	}
+
+	private static async Task GetOrCreateActiveAdminCmkAsync(ApplicationDbContext db)
+	{
+		var exists = await db.CmkRegistrations.AsNoTracking()
+			.AnyAsync(c => c.Role == CmkRole.Admin && c.Status == CmkStatus.Active);
+		if (exists)
+		{
+			return;
+		}
+
+		db.CmkRegistrations.Add(new CmkRegistration
+		{
+			CmkId = Guid.NewGuid(),
+			Arn = $"arn:aws:kms:ap-northeast-2:000000000000:key/fake-{Guid.NewGuid():N}",
+			Role = CmkRole.Admin,
+			Status = CmkStatus.Active,
+			CreatedAt = DateTimeOffset.UtcNow,
+		});
+		await db.SaveChangesAsync();
 	}
 
 	private static string UniqueWebhookUrl() =>

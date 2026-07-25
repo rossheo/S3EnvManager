@@ -48,25 +48,42 @@ public static class KeyExpirationNotificationService
 				.OrderBy(x => x.ExpiresAt)
 				.ToListAsync(cancellationToken).ConfigureAwait(false);
 
-			if (expiring.Count == 0)
+			// 공유 시크릿은 참조하는 Env마다 개별 KeyExpiration을 두지 않으므로(중복 알림 방지),
+			// 여기서 SharedSecret.ExpiresAt을 직접 스캔해 같은 메시지에 병합한다.
+			var expiringSharedSecrets = await db.SharedSecrets.AsNoTracking()
+				.Where(s => s.ExpiresAt != null && s.ExpiresAt <= cutoff)
+				.OrderBy(s => s.ExpiresAt)
+				.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+			if (expiring.Count == 0 && expiringSharedSecrets.Count == 0)
 			{
 				continue;
 			}
 
 			var lines = expiring.Select(x =>
 			{
-				var daysLeft = (Int32)Math.Floor((x.ExpiresAt - now).TotalDays);
-				var dDayText = daysLeft < 0 ? $"D+{-daysLeft}(만료됨)" : $"D-{daysLeft}";
+				var dDayText = FormatDDay(x.ExpiresAt, now);
 				var bundle = x.IsOverwriteBundle ? "(overwrite)" : "";
 				return $"- {x.AppName}/{x.EnvName.ToObjectSegment()}{bundle} {x.KeyName}: " +
 					$"{x.ExpiresAt:yyyy-MM-dd} ({dDayText})";
 			});
+			var sharedLines = expiringSharedSecrets.Select(s =>
+			{
+				var dDayText = FormatDDay(s.ExpiresAt!.Value, now);
+				return $"- [공유] {s.Name}: {s.ExpiresAt:yyyy-MM-dd} ({dDayText})";
+			});
 			var content = $"**키 만료 알림** (D-Day {settings.NotifyDaysBeforeExpiration}일 설정)\n" +
-				string.Join("\n", lines);
+				string.Join("\n", lines.Concat(sharedLines));
 
 			var webhookUrl = protector.Unprotect(settings.ProtectedDiscordWebhookUrl!);
 			await notifier.SendAsync(webhookUrl, content, cancellationToken).ConfigureAwait(false);
 		}
+	}
+
+	private static string FormatDDay(DateTimeOffset expiresAt, DateTimeOffset now)
+	{
+		var daysLeft = (Int32)Math.Floor((expiresAt - now).TotalDays);
+		return daysLeft < 0 ? $"D+{-daysLeft}(만료됨)" : $"D-{daysLeft}";
 	}
 
 	private static async Task<bool> IsKeyExpirationAlertEnabledAsync(
