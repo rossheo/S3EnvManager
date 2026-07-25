@@ -210,6 +210,74 @@ public class SharedSecretReferenceServiceTests
 		Assert.Equal("stable-value", session.Values["EXTERNAL_API_KEY"]);
 	}
 
+	[Fact]
+	public async Task DeleteAsync_AutoDetachesReferences_AndPromotesExpirationToKeyExpiration()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (app, env) = await fixture.RegisterAppAsync("shref-g-" + Guid.NewGuid().ToString("N")[..8]);
+
+		var sharedSecretService = fixture.CreateSharedSecretService();
+		var expiresAt = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+		var sharedSecretId = await sharedSecretService.CreateAsync(
+			"ext-api-" + Guid.NewGuid().ToString("N")[..8], null, "v1", expiresAt, actorUserId: null);
+		await sharedSecretService.GrantAsync(sharedSecretId, app.Id, actorUserId: null);
+
+		var referenceService = fixture.CreateReferenceService();
+		var editedReferences = new Dictionary<string, Guid> { ["EXTERNAL_API_KEY"] = sharedSecretId };
+		var outcome = await referenceService.SaveWithReferencesAsync(
+			env.Id, new Dictionary<string, string>(), null, new Dictionary<string, string>(),
+			editedReferences, actorUserId: null, actorEmail: null, SecretBundleKind.Base);
+		Assert.IsType<SaveSuccess>(outcome);
+
+		await sharedSecretService.DeleteAsync(sharedSecretId, actorUserId: null);
+
+		await using var db = Fixture.CreateDbContext();
+		Assert.False(await db.SharedSecrets.AsNoTracking().AnyAsync(s => s.Id == sharedSecretId));
+		Assert.False(await db.SharedSecretReferences.AsNoTracking()
+			.AnyAsync(r => r.EnvId == env.Id && r.KeyName == "EXTERNAL_API_KEY"));
+
+		// 값은 그대로 남아 자체 소유 키가 되고, 잃을 뻔한 만료일은 KeyExpiration으로 승격됐다.
+		var bundleService = fixture.CreateBundleService();
+		var session = await bundleService.LoadForEditAsync(env.Id);
+		Assert.Equal("v1", session.Values["EXTERNAL_API_KEY"]);
+		Assert.Equal(expiresAt, session.Expirations["EXTERNAL_API_KEY"]);
+	}
+
+	[Fact]
+	public async Task ReferenceRow_CannotBeOrphaned_ForeignKeyRestrictBlocksDirectDelete()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (app, env) = await fixture.RegisterAppAsync("shref-h-" + Guid.NewGuid().ToString("N")[..8]);
+
+		var sharedSecretService = fixture.CreateSharedSecretService();
+		var sharedSecretId = await sharedSecretService.CreateAsync(
+			"ext-api-" + Guid.NewGuid().ToString("N")[..8], null, "v1", null, actorUserId: null);
+		await sharedSecretService.GrantAsync(sharedSecretId, app.Id, actorUserId: null);
+
+		var referenceService = fixture.CreateReferenceService();
+		var editedReferences = new Dictionary<string, Guid> { ["EXTERNAL_API_KEY"] = sharedSecretId };
+		await referenceService.SaveWithReferencesAsync(
+			env.Id, new Dictionary<string, string>(), null, new Dictionary<string, string>(),
+			editedReferences, actorUserId: null, actorEmail: null, SecretBundleKind.Base);
+
+		// SharedSecretService.DeleteAsync를 우회해 "detach를 깜빡한 버그"를 흉내낸다 - DB가
+		// 물리적으로 막아야 한다(dangling reference의 최종 안전장치).
+		await using var db = Fixture.CreateDbContext();
+		var secret = await db.SharedSecrets.SingleAsync(s => s.Id == sharedSecretId);
+		db.SharedSecrets.Remove(secret);
+		await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+	}
+
 	private static Task<bool> IsEnvironmentAvailableAsync() => TestEnvironment.IsPostgresAvailableAsync();
 
 	private sealed class Fixture

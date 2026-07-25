@@ -225,11 +225,13 @@ public sealed class SharedSecretService(
 				.SingleAsync(cancellationToken).ConfigureAwait(false);
 
 			// 자동 detach: 참조 행만 지운다(값은 이미 각 Env 번들에 materialize돼 있어 그대로
-			// 자체 소유 키가 된다) - 절대 dangling 상태를 남기지 않는다. Phase 5에서 여기에
-			// SharedSecret의 만료일을 각 Env의 KeyExpiration으로 승격 복제하는 단계를 추가한다.
+			// 자체 소유 키가 된다) - 절대 dangling 상태를 남기지 않는다. 만료일이 있었다면
+			// 잃지 않도록 각 Env의 KeyExpiration으로 승격 복제한다.
 			var references = await db.SharedSecretReferences
 				.Where(r => r.SharedSecretId == id)
 				.ToListAsync(cancellationToken).ConfigureAwait(false);
+			await PromoteExpirationsForReferencesAsync(locked, references, cancellationToken)
+				.ConfigureAwait(false);
 			db.SharedSecretReferences.RemoveRange(references);
 
 			var grants = await db.SharedSecretAppGrants
@@ -292,9 +294,13 @@ public sealed class SharedSecretService(
 			// DeleteAsync와 대칭 - 이 App이 이미 가진 참조를 먼저 전부 detach한다("그랜트 없음 +
 			// 참조는 있음"이라는 반쪽 상태를 남기지 않기 위함). 값은 이미 그 App 번들에
 			// materialize돼 있으므로 참조 행만 지우면 자체 소유 키로 전환된다.
+			var secret = await db.SharedSecrets.AsNoTracking()
+				.SingleAsync(s => s.Id == sharedSecretId, cancellationToken).ConfigureAwait(false);
 			var references = await db.SharedSecretReferences
 				.Where(r => r.SharedSecretId == sharedSecretId && r.Env!.AppId == appId)
 				.ToListAsync(cancellationToken).ConfigureAwait(false);
+			await PromoteExpirationsForReferencesAsync(secret, references, cancellationToken)
+				.ConfigureAwait(false);
 			db.SharedSecretReferences.RemoveRange(references);
 
 			var grant = await db.SharedSecretAppGrants
@@ -316,6 +322,41 @@ public sealed class SharedSecretService(
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 		}).ConfigureAwait(false);
+	}
+
+	// detach되는 참조가 SharedSecret의 만료일을 잃지 않도록, 그 Env에 아직 자체 만료일이 없는
+	// 경우에만 KeyExpiration으로 승격 복제한다(이미 자체 만료일이 있으면 사용자 의도를 존중해
+	// 덮어쓰지 않음).
+	private async Task PromoteExpirationsForReferencesAsync(
+		SharedSecret secret, IReadOnlyList<SharedSecretReference> references,
+		CancellationToken cancellationToken)
+	{
+		if (secret.ExpiresAt is null || references.Count == 0)
+		{
+			return;
+		}
+
+		foreach (var reference in references)
+		{
+			var hasOwnExpiration = await db.KeyExpirations.AnyAsync(
+				k => k.EnvId == reference.EnvId && k.IsOverwriteBundle == reference.IsOverwriteBundle
+					&& k.KeyName == reference.KeyName,
+				cancellationToken).ConfigureAwait(false);
+			if (hasOwnExpiration)
+			{
+				continue;
+			}
+
+			db.KeyExpirations.Add(new KeyExpiration
+			{
+				Id = Guid.NewGuid(),
+				EnvId = reference.EnvId,
+				IsOverwriteBundle = reference.IsOverwriteBundle,
+				KeyName = reference.KeyName,
+				ExpiresAt = secret.ExpiresAt.Value,
+				UpdatedAt = DateTimeOffset.UtcNow,
+			});
+		}
 	}
 
 	public async Task<IReadOnlyList<Guid>> ListGrantedAppIdsAsync(
