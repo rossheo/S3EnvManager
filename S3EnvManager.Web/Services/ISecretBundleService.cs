@@ -24,6 +24,7 @@ public interface ISecretBundleService
 		string? actorUserId = null,
 		string? actorEmail = null,
 		SecretBundleKind kind = SecretBundleKind.Base,
+		IReadOnlyDictionary<string, DateTimeOffset?>? editedExpirations = null,
 		CancellationToken cancellationToken = default);
 
 	// 값은 복호화하지 않으므로, 오래된 버전을 감쌌던 CMK가 제거되어 있어도 실패하지 않는다.

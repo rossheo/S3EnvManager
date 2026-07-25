@@ -1,0 +1,143 @@
+@page "/Account/Manage/Notifications"
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using S3EnvManager.Web.Services
+
+@inject IUserNotificationSettingsService UserNotificationSettingsService
+@inject IUserNotificationAlertSwitchService UserNotificationAlertSwitchService
+@inject ISnackbar Snackbar
+
+<MudPopoverProvider />
+<MudSnackbarProvider />
+
+<PageTitle>Notifications</PageTitle>
+
+<MudText Typo="Typo.h6" GutterBottom="true">Notifications</MudText>
+
+@if (_userId is null || _switches is null)
+{
+	<MudProgressCircular Color="Color.Default" Indeterminate="true" />
+}
+else
+{
+	<MudText Typo="Typo.body2" Class="mb-4">
+		Discord 웹훅 URL과 D-Day(만료 며칠 전부터 알림받을지)를 설정하면, 매일 한 번씩 D-Day 창 안에
+		든(또는 이미 지난) 만료 키가 있는지 확인해 Discord로 알려드립니다.
+	</MudText>
+
+	@if (_errorMessage is not null)
+	{
+		<MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+	}
+
+	<MudGrid>
+		<MudItem md="12">
+			<MudTextField @bind-Value="_webhookUrl" Label="Discord 웹훅 URL"
+				Placeholder="https://discord.com/api/webhooks/..." Immediate="true" />
+		</MudItem>
+		<MudItem md="12">
+			<MudNumericField @bind-Value="_dDayDays" Label="D-Day (며칠 전부터 알림)"
+				Placeholder="예: 7" Immediate="true" Min="1" Max="3650" />
+		</MudItem>
+		<MudItem md="12">
+			<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_saving">
+				@(_saving ? "저장 중..." : "저장")
+			</MudButton>
+		</MudItem>
+	</MudGrid>
+
+	<MudText Typo="Typo.subtitle1" Class="mt-6 mb-2">알림 종류</MudText>
+	<MudTable Items="_switches" Hover="true" Elevation="0">
+		<HeaderContent>
+			<MudTh>알림</MudTh>
+			<MudTh>활성화</MudTh>
+			<MudTh>설명</MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTd DataLabel="알림">@context.AlertType</MudTd>
+			<MudTd DataLabel="활성화">
+				<MudSwitch T="bool" Value="@context.Enabled"
+					ValueChanged="@(enabled => SetSwitchAsync(context.AlertType, enabled))"
+					Color="Color.Primary" />
+			</MudTd>
+			<MudTd DataLabel="설명">@context.Description</MudTd>
+		</RowTemplate>
+	</MudTable>
+}
+
+@code {
+	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+	private string? _userId;
+	private string? _webhookUrl;
+	private Int32? _dDayDays;
+	private List<UserNotificationAlertSwitchInfo>? _switches;
+	private bool _saving;
+	private string? _errorMessage;
+
+	protected override async Task OnInitializedAsync()
+	{
+		_userId = await GetCurrentUserIdAsync();
+		if (_userId is null)
+		{
+			return;
+		}
+
+		await ReloadAsync();
+	}
+
+	private async Task ReloadAsync()
+	{
+		var settings = await UserNotificationSettingsService.GetAsync(_userId!);
+		_webhookUrl = settings.WebhookUrl;
+		_dDayDays = settings.NotifyDaysBeforeExpiration;
+		_switches = await UserNotificationAlertSwitchService.ListAsync(_userId!);
+	}
+
+	private async Task<string?> GetCurrentUserIdAsync()
+	{
+		if (AuthenticationStateTask is null)
+		{
+			return null;
+		}
+		var state = await AuthenticationStateTask;
+		return state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+	}
+
+	private async Task SaveAsync()
+	{
+		_errorMessage = null;
+		_saving = true;
+		try
+		{
+			var error = await UserNotificationSettingsService.SaveAsync(_userId!, _webhookUrl, _dDayDays);
+			if (error is not null)
+			{
+				_errorMessage = error;
+				return;
+			}
+			await ReloadAsync();
+			Snackbar.Add("저장했습니다.", Severity.Success);
+		}
+		finally
+		{
+			_saving = false;
+		}
+	}
+
+	private async Task SetSwitchAsync(string alertType, bool enabled)
+	{
+		try
+		{
+			await UserNotificationAlertSwitchService.SetEnabledAsync(_userId!, alertType, enabled);
+			await ReloadAsync();
+			Snackbar.Add("변경했습니다.", Severity.Success);
+		}
+		catch (Exception ex)
+		{
+			Snackbar.Add($"변경에 실패했습니다: {ex.Message}", Severity.Error);
+		}
+	}
+}

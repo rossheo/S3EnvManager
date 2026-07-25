@@ -38,6 +38,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 	public DbSet<DataProtectionCertificate> DataProtectionCertificates => Set<DataProtectionCertificate>();
 
+	public DbSet<KeyExpiration> KeyExpirations => Set<KeyExpiration>();
+
+	public DbSet<UserNotificationSettings> UserNotificationSettings => Set<UserNotificationSettings>();
+
+	public DbSet<UserNotificationAlertSwitch> UserNotificationAlertSwitches =>
+		Set<UserNotificationAlertSwitch>();
+
 	protected override void OnModelCreating(ModelBuilder builder)
 	{
 		base.OnModelCreating(builder);
@@ -128,6 +135,33 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 		{
 			entity.HasKey(c => c.Id);
 			entity.HasIndex(c => c.NotBefore);
+		});
+
+		builder.Entity<KeyExpiration>(entity =>
+		{
+			entity.HasIndex(k => new { k.EnvId, k.IsOverwriteBundle, k.KeyName }).IsUnique();
+			entity.HasOne(k => k.Env)
+				.WithMany()
+				.HasForeignKey(k => k.EnvId)
+				.OnDelete(DeleteBehavior.Cascade);
+		});
+
+		builder.Entity<UserNotificationSettings>(entity =>
+		{
+			entity.HasKey(s => s.UserId);
+			entity.HasOne(s => s.User)
+				.WithMany()
+				.HasForeignKey(s => s.UserId)
+				.OnDelete(DeleteBehavior.Cascade);
+		});
+
+		builder.Entity<UserNotificationAlertSwitch>(entity =>
+		{
+			entity.HasKey(s => new { s.UserId, s.AlertType });
+			entity.HasOne(s => s.User)
+				.WithMany()
+				.HasForeignKey(s => s.UserId)
+				.OnDelete(DeleteBehavior.Cascade);
 		});
 	}
 }

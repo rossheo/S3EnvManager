@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using S3EnvManager.Database;
@@ -11,9 +12,11 @@ using S3EnvManager.Database;
 namespace S3EnvManager.Database.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260725023747_AddKeyExpiration")]
+    partial class AddKeyExpiration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -608,44 +611,6 @@ namespace S3EnvManager.Database.Migrations
                     b.ToTable("PrimaryStorageSettings");
                 });
 
-            modelBuilder.Entity("S3EnvManager.Database.Models.UserNotificationAlertSwitch", b =>
-                {
-                    b.Property<string>("UserId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("AlertType")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("UserId", "AlertType");
-
-                    b.ToTable("UserNotificationAlertSwitches");
-                });
-
-            modelBuilder.Entity("S3EnvManager.Database.Models.UserNotificationSettings", b =>
-                {
-                    b.Property<string>("UserId")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("NotifyDaysBeforeExpiration")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ProtectedDiscordWebhookUrl")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("UserNotificationSettings");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -807,28 +772,6 @@ namespace S3EnvManager.Database.Migrations
                         .IsRequired();
 
                     b.Navigation("Env");
-                });
-
-            modelBuilder.Entity("S3EnvManager.Database.Models.UserNotificationAlertSwitch", b =>
-                {
-                    b.HasOne("S3EnvManager.Database.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("S3EnvManager.Database.Models.UserNotificationSettings", b =>
-                {
-                    b.HasOne("S3EnvManager.Database.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("S3EnvManager.Database.Models.App", b =>

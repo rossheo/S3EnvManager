@@ -354,6 +354,69 @@ public class SecretBundleServiceTests
 		Assert.Equal(initialSuccess.NewETag, afterRollback.BaseETag);
 	}
 
+	[Fact]
+	public async Task SetExpiration_SaveThenReload_PersistsExpiration_AndAuditsChange()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (app, env) = await fixture.RegisterAppAsync("expiration-" + Guid.NewGuid().ToString("N")[..8]);
+		var service = fixture.CreateService();
+
+		var expiresAt = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+		var values = new Dictionary<string, string> { ["FOO"] = "bar", ["BAR"] = "baz" };
+		var expirations = new Dictionary<string, DateTimeOffset?> { ["FOO"] = expiresAt };
+		var outcome = await service.SaveAsync(
+			env.Id, new Dictionary<string, string>(), null, values, actorUserId: "user-1",
+			editedExpirations: expirations);
+		Assert.IsType<SaveSuccess>(outcome);
+
+		var reloaded = await service.LoadForEditAsync(env.Id);
+		Assert.True(reloaded.Expirations.TryGetValue("FOO", out var actualExpiresAt));
+		Assert.Equal(expiresAt, actualExpiresAt);
+		Assert.False(reloaded.Expirations.ContainsKey("BAR"));
+
+		await using var db = Fixture.CreateDbContextForAssertions();
+		var log = await db.AuditLogs.AsNoTracking()
+			.Where(a => a.AppId == app.Id && a.EventType == AuditEventTypes.SecretEdited)
+			.OrderByDescending(a => a.OccurredAt)
+			.FirstAsync();
+		Assert.Contains("expirationsChanged", log.Details);
+		Assert.Contains("FOO", log.Details);
+	}
+
+	[Fact]
+	public async Task DeletingKey_RemovesItsExpiration()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (app, env) = await fixture.RegisterAppAsync(
+			"expiration-del-" + Guid.NewGuid().ToString("N")[..8]);
+		var service = fixture.CreateService();
+
+		var expiresAt = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+		var values = new Dictionary<string, string> { ["FOO"] = "bar" };
+		var expirations = new Dictionary<string, DateTimeOffset?> { ["FOO"] = expiresAt };
+		var initial = await service.SaveAsync(
+			env.Id, new Dictionary<string, string>(), null, values, editedExpirations: expirations);
+		var initialSuccess = Assert.IsType<SaveSuccess>(initial);
+
+		var withoutKey = new Dictionary<string, string>();
+		var outcome = await service.SaveAsync(
+			env.Id, values, initialSuccess.NewETag, withoutKey, editedExpirations: expirations);
+		Assert.IsType<SaveSuccess>(outcome);
+
+		var reloaded = await service.LoadForEditAsync(env.Id);
+		Assert.Empty(reloaded.Expirations);
+	}
+
 	private static Task<bool> IsEnvironmentAvailableAsync() => TestEnvironment.IsPostgresAvailableAsync();
 
 	private sealed class Fixture
@@ -421,6 +484,8 @@ public class SecretBundleServiceTests
 			await db.SaveChangesAsync();
 			return arn;
 		}
+
+		public static ApplicationDbContext CreateDbContextForAssertions() => CreateDbContext();
 
 		private static ApplicationDbContext CreateDbContext() =>
 			new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(PostgresConnectionString).Options);

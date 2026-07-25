@@ -30,15 +30,17 @@ public sealed class SecretBundleService(
 			.SingleAsync(e => e.Id == envId, cancellationToken).ConfigureAwait(false);
 		var (bucket, key) = await ObjectLocationAsync(env, kind, cancellationToken).ConfigureAwait(false);
 
+		var expirations = await LoadExpirationsAsync(envId, kind, cancellationToken).ConfigureAwait(false);
+
 		var stored = await store.GetCurrentAsync(bucket, key, cancellationToken).ConfigureAwait(false);
 		if (stored is null)
 		{
-			return new SecretEditSession(new Dictionary<string, string>(), null);
+			return new SecretEditSession(new Dictionary<string, string>(), null, expirations);
 		}
 
 		var values = await SopsEnvelopeCodec.DecryptAsAdminAsync(stored.Content, kms, cancellationToken)
 			.ConfigureAwait(false);
-		return new SecretEditSession(values, stored.ETag);
+		return new SecretEditSession(values, stored.ETag, expirations);
 	}
 
 	public async Task<SaveOutcome> SaveAsync(
@@ -49,6 +51,7 @@ public sealed class SecretBundleService(
 		string? actorUserId = null,
 		string? actorEmail = null,
 		SecretBundleKind kind = SecretBundleKind.Base,
+		IReadOnlyDictionary<string, DateTimeOffset?>? editedExpirations = null,
 		CancellationToken cancellationToken = default)
 	{
 		// Blazor Server는 클라이언트가 보낸 문자열을 그대로 바인딩하므로 화면 입력 제약과 무관하게
@@ -149,10 +152,14 @@ public sealed class SecretBundleService(
 			{
 				lockedEnv.OverwriteLastKnownETag = putResult.ETag;
 			}
+
+			var changedExpirationKeys = await ApplyExpirationChangesAsync(
+				envId, kind, editedValues, editedExpirations, cancellationToken).ConfigureAwait(false);
+
 			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
 			// 값 자체는 시크릿이므로 절대 로그에 남기지 않는다.
-			var diff = DescribeKeyDiff(baseSnapshot, editedValues);
+			var diff = DescribeKeyDiff(baseSnapshot, editedValues, changedExpirationKeys);
 			if (diff is not null)
 			{
 				var eventType = kind == SecretBundleKind.Base
@@ -214,6 +221,85 @@ public sealed class SecretBundleService(
 		return count;
 	}
 
+	private async Task<IReadOnlyDictionary<string, DateTimeOffset>> LoadExpirationsAsync(
+		Guid envId, SecretBundleKind kind, CancellationToken cancellationToken)
+	{
+		var isOverwriteBundle = kind == SecretBundleKind.Overwrite;
+		return await db.KeyExpirations.AsNoTracking()
+			.Where(k => k.EnvId == envId && k.IsOverwriteBundle == isOverwriteBundle)
+			.ToDictionaryAsync(k => k.KeyName, k => k.ExpiresAt, cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	// editedValues에 남아있는 키의 만료일을 upsert하고, 값이 지워졌거나 만료일이 비워진 키의
+	// 행은 삭제한다. 반환값은 감사 로그용으로 실제 변경(추가/변경/삭제)이 일어난 키 이름 목록이다.
+	private async Task<IReadOnlyList<string>> ApplyExpirationChangesAsync(
+		Guid envId,
+		SecretBundleKind kind,
+		IReadOnlyDictionary<string, string> editedValues,
+		IReadOnlyDictionary<string, DateTimeOffset?>? editedExpirations,
+		CancellationToken cancellationToken)
+	{
+		var isOverwriteBundle = kind == SecretBundleKind.Overwrite;
+		var existingByKey = await db.KeyExpirations
+			.Where(k => k.EnvId == envId && k.IsOverwriteBundle == isOverwriteBundle)
+			.ToDictionaryAsync(k => k.KeyName, cancellationToken).ConfigureAwait(false);
+
+		var expirations = editedExpirations ?? new Dictionary<string, DateTimeOffset?>();
+		var changedKeys = new List<string>();
+
+		foreach (var valueKey in editedValues.Keys)
+		{
+			var hasExisting = existingByKey.TryGetValue(valueKey, out var existing);
+			var newExpiresAt = expirations.TryGetValue(valueKey, out var v) ? v : null;
+
+			if (newExpiresAt is null)
+			{
+				if (hasExisting)
+				{
+					db.KeyExpirations.Remove(existing!);
+					changedKeys.Add(valueKey);
+				}
+				continue;
+			}
+
+			if (hasExisting)
+			{
+				if (existing!.ExpiresAt != newExpiresAt.Value)
+				{
+					existing.ExpiresAt = newExpiresAt.Value;
+					existing.UpdatedAt = DateTimeOffset.UtcNow;
+					changedKeys.Add(valueKey);
+				}
+			}
+			else
+			{
+				db.KeyExpirations.Add(new KeyExpiration
+				{
+					Id = Guid.NewGuid(),
+					EnvId = envId,
+					IsOverwriteBundle = isOverwriteBundle,
+					KeyName = valueKey,
+					ExpiresAt = newExpiresAt.Value,
+					UpdatedAt = DateTimeOffset.UtcNow,
+				});
+				changedKeys.Add(valueKey);
+			}
+		}
+
+		// editedValues에서 완전히 사라진(삭제된) 키의 만료일 행도 함께 정리한다.
+		foreach (var (existingKey, existing) in existingByKey)
+		{
+			if (!editedValues.ContainsKey(existingKey))
+			{
+				db.KeyExpirations.Remove(existing);
+				changedKeys.Add(existingKey);
+			}
+		}
+
+		return changedKeys;
+	}
+
 	private async Task<SaveConflict> BuildConflictAsync(
 		string bucket,
 		string key,
@@ -264,22 +350,31 @@ public sealed class SecretBundleService(
 		return (bucket, SecretObjectKeys.Locate(app, env, kind));
 	}
 
-	// 추가/변경/삭제된 키 이름만 담는다(값은 절대 포함하지 않음). 아무 키도 안 바뀌었으면 null.
+	// 추가/변경/삭제된 키 이름과 만료일이 바뀐 키 이름만 담는다(값/만료일 자체는 절대 포함하지
+	// 않음). 아무것도 안 바뀌었으면 null.
 	private static string? DescribeKeyDiff(
-		IReadOnlyDictionary<string, string> before, IReadOnlyDictionary<string, string> after)
+		IReadOnlyDictionary<string, string> before,
+		IReadOnlyDictionary<string, string> after,
+		IReadOnlyList<string> expirationsChanged)
 	{
 		var added = after.Keys.Where(k => !before.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
 		var removed = before.Keys.Where(k => !after.ContainsKey(k))
 			.OrderBy(k => k, StringComparer.Ordinal).ToList();
 		var changed = after.Keys.Where(k => before.TryGetValue(k, out var v) && v != after[k])
 			.OrderBy(k => k, StringComparer.Ordinal).ToList();
+		var expirationsChangedSorted = expirationsChanged.Distinct()
+			.OrderBy(k => k, StringComparer.Ordinal).ToList();
 
-		if (added.Count == 0 && removed.Count == 0 && changed.Count == 0)
+		var nothingChanged = added.Count == 0 && removed.Count == 0 && changed.Count == 0
+			&& expirationsChangedSorted.Count == 0;
+		if (nothingChanged)
 		{
 			return null;
 		}
 
-		return System.Text.Json.JsonSerializer.Serialize(new { added, changed, removed }, AuditJsonOptions.Default);
+		return System.Text.Json.JsonSerializer.Serialize(
+			new { added, changed, removed, expirationsChanged = expirationsChangedSorted },
+			AuditJsonOptions.Default);
 	}
 
 	private static bool ValuesEqual(IReadOnlyDictionary<string, string> a, IReadOnlyDictionary<string, string> b)

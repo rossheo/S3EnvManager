@@ -149,6 +149,10 @@ builder.Services.AddScoped<IDataKeyRotationSettingsService, DataKeyRotationSetti
 builder.Services.AddScoped<IFeatureSwitchService, FeatureSwitchService>();
 builder.Services.AddHostedService<DataKeyRotationBackgroundService>();
 builder.Services.AddScoped<IDbBackupAccountService, DbBackupAccountService>();
+builder.Services.AddScoped<IUserNotificationSettingsService, UserNotificationSettingsService>();
+builder.Services.AddScoped<IUserNotificationAlertSwitchService, UserNotificationAlertSwitchService>();
+builder.Services.AddHttpClient<IDiscordNotifier, DiscordNotifier>();
+builder.Services.AddHostedService<KeyExpirationNotificationBackgroundService>();
 
 var app = builder.Build();
 

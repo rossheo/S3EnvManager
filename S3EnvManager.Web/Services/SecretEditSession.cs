@@ -1,7 +1,11 @@
 namespace S3EnvManager.Web.Services;
 
 // BaseETag가 null이면 아직 한 번도 저장된 적 없는(오브젝트가 존재하지 않는) 환경이다.
-public sealed record SecretEditSession(IReadOnlyDictionary<string, string> Values, string? BaseETag);
+// Expirations는 만료일을 지정한 키만 담는다(값이 없는 키는 만료일 없음).
+public sealed record SecretEditSession(
+	IReadOnlyDictionary<string, string> Values,
+	string? BaseETag,
+	IReadOnlyDictionary<string, DateTimeOffset> Expirations);
 
 public abstract record SaveOutcome;
 
