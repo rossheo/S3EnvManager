@@ -171,6 +171,9 @@ public class AwsAutoProvisioningServiceTests
 		// FK Restrict 제약 순서상 이 순서로 지워야 한다.
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"AppCredentials\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"DbBackupAccountCredentials\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecretReferences\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecretAppGrants\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecrets\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"DataKeyGenerations\"");
 		await db.CmkRegistrations.ExecuteDeleteAsync();
 		await db.AwsBootstrapCredentials.Where(c => c.Role == CmkRole.App).ExecuteDeleteAsync();

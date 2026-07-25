@@ -191,6 +191,9 @@ public class DataKeyRotationTests
 		// FK Restrict 제약 순서상 참조하는 테이블부터 지운다(직렬 실행이라 안전).
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"AppCredentials\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"DbBackupAccountCredentials\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecretReferences\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecretAppGrants\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecrets\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"DataKeyGenerations\"");
 	}
 

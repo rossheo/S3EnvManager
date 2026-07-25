@@ -70,6 +70,75 @@ public class SharedSecretServiceTests
 	}
 
 	[Fact]
+	public async Task GrantAsync_ThenListGrantedAppIds_ReflectsGrant_AndRevokeRemovesIt()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var kms = new FakeKmsKeyOperations();
+		await GetOrCreateActiveAdminCmkAsync(kms);
+		var service = CreateService(kms);
+		var (appA, _) = await RegisterAppAsync();
+
+		var id = await service.CreateAsync(
+			"ext-api-" + Guid.NewGuid().ToString("N")[..8], null, "v1", null, actorUserId: null);
+
+		await service.GrantAsync(id, appA.Id, actorUserId: "admin-1");
+		var granted = await service.ListGrantedAppIdsAsync(id);
+		Assert.Contains(appA.Id, granted);
+
+		// 그랜트를 두 번 줘도 중복 행이 생기지 않아야 한다(유니크 인덱스 + 존재 체크).
+		await service.GrantAsync(id, appA.Id, actorUserId: "admin-1");
+		Assert.Single(await service.ListGrantedAppIdsAsync(id));
+
+		await service.RevokeGrantAsync(id, appA.Id, actorUserId: "admin-1");
+		Assert.DoesNotContain(appA.Id, await service.ListGrantedAppIdsAsync(id));
+	}
+
+	[Fact]
+	public async Task RevokeGrantAsync_AutoDetachesExistingReferences_WithoutLeavingDanglingRow()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var kms = new FakeKmsKeyOperations();
+		await GetOrCreateActiveAdminCmkAsync(kms);
+		var service = CreateService(kms);
+		var (appA, envA) = await RegisterAppAsync();
+
+		var id = await service.CreateAsync(
+			"ext-api-" + Guid.NewGuid().ToString("N")[..8], null, "v1", null, actorUserId: null);
+		await service.GrantAsync(id, appA.Id, actorUserId: null);
+
+		// Phase 3(참조 추가 UI)가 아직 없으므로, 이미 참조가 있는 상태를 직접 만들어
+		// RevokeGrantAsync가 대칭적으로 detach하는지 검증한다.
+		await using (var db = CreateDbContext())
+		{
+			db.SharedSecretReferences.Add(new SharedSecretReference
+			{
+				Id = Guid.NewGuid(),
+				SharedSecretId = id,
+				EnvId = envA.Id,
+				IsOverwriteBundle = false,
+				KeyName = "EXTERNAL_API_KEY",
+				LastMaterializedAt = DateTimeOffset.UtcNow,
+				CreatedAt = DateTimeOffset.UtcNow,
+			});
+			await db.SaveChangesAsync();
+		}
+
+		await service.RevokeGrantAsync(id, appA.Id, actorUserId: null);
+
+		await using var verifyDb = CreateDbContext();
+		Assert.False(await verifyDb.SharedSecretReferences.AsNoTracking()
+			.AnyAsync(r => r.SharedSecretId == id && r.EnvId == envA.Id));
+	}
+
+	[Fact]
 	public async Task DeleteAsync_RemovesRegistryEntry()
 	{
 		if (!await IsEnvironmentAvailableAsync())
@@ -145,6 +214,22 @@ public class SharedSecretServiceTests
 		new(CreateDbContext(), new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache()),
 			new AuditLogger(CreateDbContext()));
 
+	private static async Task<(App App, Env Env)> RegisterAppAsync()
+	{
+		await using var db = CreateDbContext();
+		var app = new App
+		{
+			Id = Guid.NewGuid(),
+			Name = "shared-secret-" + Guid.NewGuid().ToString("N")[..8],
+			CreatedAt = DateTimeOffset.UtcNow,
+		};
+		var env = new Env { Id = Guid.NewGuid(), AppId = app.Id, Name = EnvName.Dev };
+		app.Envs.Add(env);
+		db.Apps.Add(app);
+		await db.SaveChangesAsync();
+		return (app, env);
+	}
+
 	private static async Task GetOrCreateActiveAdminCmkAsync(FakeKmsKeyOperations kms)
 	{
 		await using var db = CreateDbContext();
@@ -166,7 +251,8 @@ public class SharedSecretServiceTests
 		await db.SaveChangesAsync();
 	}
 
-	private static string NewFakeArn() => $"arn:aws:kms:ap-northeast-2:000000000000:key/fake-{Guid.NewGuid():N}";
+	private static string NewFakeArn() =>
+		$"arn:aws:kms:ap-northeast-2:000000000000:key/fake-{Guid.NewGuid():N}";
 
 	private static async Task ResetSharedCmkStateAsync()
 	{

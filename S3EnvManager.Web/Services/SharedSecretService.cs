@@ -35,7 +35,8 @@ public sealed class SharedSecretService(
 			throw new ArgumentException("이름을 입력하세요.", nameof(name));
 		}
 
-		var (ciphertext, dataKeyId) = await cipher.EncryptAsync(value, cancellationToken).ConfigureAwait(false);
+		var (ciphertext, dataKeyId) = await cipher.EncryptAsync(value, cancellationToken)
+			.ConfigureAwait(false);
 		var now = DateTimeOffset.UtcNow;
 		var entity = new SharedSecret
 		{
@@ -155,5 +156,102 @@ public sealed class SharedSecretService(
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 		}).ConfigureAwait(false);
+	}
+
+	public async Task GrantAsync(
+		Guid sharedSecretId, Guid appId, string? actorUserId, CancellationToken cancellationToken = default)
+	{
+		var exists = await db.SharedSecretAppGrants.AsNoTracking()
+			.AnyAsync(g => g.SharedSecretId == sharedSecretId && g.AppId == appId, cancellationToken)
+			.ConfigureAwait(false);
+		if (exists)
+		{
+			return;
+		}
+
+		db.SharedSecretAppGrants.Add(new SharedSecretAppGrant
+		{
+			Id = Guid.NewGuid(),
+			SharedSecretId = sharedSecretId,
+			AppId = appId,
+			GrantedAt = DateTimeOffset.UtcNow,
+			GrantedByUserId = actorUserId,
+		});
+		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+		var details = System.Text.Json.JsonSerializer.Serialize(
+			new { sharedSecretId }, AuditJsonOptions.Default);
+		await auditLogger.LogAsync(
+			AuditEventTypes.SharedSecretGrantAdded, actorUserId, appId, details, cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	public async Task RevokeGrantAsync(
+		Guid sharedSecretId, Guid appId, string? actorUserId, CancellationToken cancellationToken = default)
+	{
+		var strategy = db.Database.CreateExecutionStrategy();
+		await strategy.ExecuteAsync(async () =>
+		{
+			db.ChangeTracker.Clear();
+			await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken)
+				.ConfigureAwait(false);
+
+			// DeleteAsync와 대칭 - 이 App이 이미 가진 참조를 먼저 전부 detach한다("그랜트 없음 +
+			// 참조는 있음"이라는 반쪽 상태를 남기지 않기 위함). 값은 이미 그 App 번들에
+			// materialize돼 있으므로 참조 행만 지우면 자체 소유 키로 전환된다.
+			var references = await db.SharedSecretReferences
+				.Where(r => r.SharedSecretId == sharedSecretId && r.Env!.AppId == appId)
+				.ToListAsync(cancellationToken).ConfigureAwait(false);
+			db.SharedSecretReferences.RemoveRange(references);
+
+			var grant = await db.SharedSecretAppGrants
+				.SingleOrDefaultAsync(
+					g => g.SharedSecretId == sharedSecretId && g.AppId == appId, cancellationToken)
+				.ConfigureAwait(false);
+			if (grant is not null)
+			{
+				db.SharedSecretAppGrants.Remove(grant);
+			}
+
+			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+			var details = System.Text.Json.JsonSerializer.Serialize(
+				new { sharedSecretId, detachedReferenceCount = references.Count }, AuditJsonOptions.Default);
+			await auditLogger.LogAsync(
+				AuditEventTypes.SharedSecretGrantRevoked, actorUserId, appId, details, cancellationToken)
+				.ConfigureAwait(false);
+
+			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+		}).ConfigureAwait(false);
+	}
+
+	public async Task<IReadOnlyList<Guid>> ListGrantedAppIdsAsync(
+		Guid sharedSecretId, CancellationToken cancellationToken = default)
+	{
+		return await db.SharedSecretAppGrants.AsNoTracking()
+			.Where(g => g.SharedSecretId == sharedSecretId)
+			.Select(g => g.AppId)
+			.ToListAsync(cancellationToken).ConfigureAwait(false);
+	}
+
+	public async Task<IReadOnlyList<SharedSecretReferenceInfo>> ListReferencesAsync(
+		Guid sharedSecretId, CancellationToken cancellationToken = default)
+	{
+		var rows = await db.SharedSecretReferences.AsNoTracking()
+			.Where(r => r.SharedSecretId == sharedSecretId)
+			.Join(db.Envs.AsNoTracking(), r => r.EnvId, e => e.Id, (r, e) => new { r, e })
+			.Join(db.Apps.AsNoTracking(), re => re.e.AppId, a => a.Id, (re, a) => new
+			{
+				re.r.EnvId, AppName = a.Name, EnvName = re.e.Name, re.r.IsOverwriteBundle, re.r.KeyName,
+				re.r.LastMaterializedAt,
+			})
+			.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+		// EnvName.ToObjectSegment()는 확장 메서드라 SQL로 번역되지 않으므로 목록을 다 가져온 뒤
+		// 클라이언트 측에서 적용한다.
+		return rows.Select(r => new SharedSecretReferenceInfo(
+			r.EnvId, r.AppName, r.EnvName.ToObjectSegment(), r.IsOverwriteBundle, r.KeyName,
+			r.LastMaterializedAt))
+			.ToList();
 	}
 }

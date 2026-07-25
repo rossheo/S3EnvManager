@@ -31,4 +31,23 @@ public interface ISharedSecretService
 	// 참조가 남아있으면 자동으로 전부 detach(자체 소유 키로 전환)한 뒤 레지스트리에서 삭제한다.
 	// 참조가 있다고 예외를 던져 사용자를 막지 않는다.
 	Task DeleteAsync(Guid id, string? actorUserId, CancellationToken cancellationToken = default);
+
+	// Administrator만 호출 - 어느 App이 이 SharedSecret을 참조로 추가할 수 있는지 화이트리스트.
+	Task GrantAsync(
+		Guid sharedSecretId, Guid appId, string? actorUserId, CancellationToken cancellationToken = default);
+
+	// DeleteAsync와 대칭 - 그 App이 이미 가진 참조가 있으면 먼저 전부 detach(자체 소유 키로
+	// 전환)한 뒤 그랜트를 제거한다. "그랜트 없음 + 참조는 있음"이라는 반쪽 상태를 남기지 않는다.
+	Task RevokeGrantAsync(
+		Guid sharedSecretId, Guid appId, string? actorUserId, CancellationToken cancellationToken = default);
+
+	Task<IReadOnlyList<Guid>> ListGrantedAppIdsAsync(
+		Guid sharedSecretId, CancellationToken cancellationToken = default);
+
+	Task<IReadOnlyList<SharedSecretReferenceInfo>> ListReferencesAsync(
+		Guid sharedSecretId, CancellationToken cancellationToken = default);
 }
+
+public sealed record SharedSecretReferenceInfo(
+	Guid EnvId, string AppName, string EnvName, bool IsOverwriteBundle, string KeyName,
+	DateTimeOffset LastMaterializedAt);
