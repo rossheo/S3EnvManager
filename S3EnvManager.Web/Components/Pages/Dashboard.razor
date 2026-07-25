@@ -76,29 +76,6 @@
 				</AuthorizeView>
 			</MudGrid>
 
-			<MudText Typo="Typo.h6" Class="mb-2">바로가기</MudText>
-			<MudStack Row="true" Wrap="Wrap.Wrap" Class="mb-4" Spacing="2">
-				<MudButton Variant="Variant.Outlined"
-					StartIcon="@Icons.Material.Filled.Apps"
-					Href="/apps">App 목록</MudButton>
-				<AuthorizeView Roles="@IdentityRoleNames.Administrator" Context="adminLinkContext">
-					<Authorized>
-						<MudButton Variant="Variant.Outlined"
-							StartIcon="@Icons.Material.Filled.CloudQueue"
-							Href="/bucket-status">버킷 상태</MudButton>
-						<MudButton Variant="Variant.Outlined"
-							StartIcon="@Icons.Material.Filled.People"
-							Href="/admin/users">사용자 역할 관리</MudButton>
-						<MudButton Variant="Variant.Outlined"
-							StartIcon="@Icons.Material.Filled.History"
-							Href="/admin/audit-log">감사 로그</MudButton>
-						<MudButton Variant="Variant.Outlined"
-							StartIcon="@Icons.Material.Filled.VpnKey"
-							Href="/admin/cmk-registry">CMK 레지스트리</MudButton>
-					</Authorized>
-				</AuthorizeView>
-			</MudStack>
-
 			<AuthorizeView Roles="@IdentityRoleNames.Administrator" Context="adminLogContext">
 				<Authorized>
 					<MudText Typo="Typo.h6" Class="mb-2">최근 활동</MudText>
