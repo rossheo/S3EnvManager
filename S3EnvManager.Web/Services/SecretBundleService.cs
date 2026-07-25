@@ -52,6 +52,7 @@ public sealed class SecretBundleService(
 		string? actorEmail = null,
 		SecretBundleKind kind = SecretBundleKind.Base,
 		IReadOnlyDictionary<string, DateTimeOffset?>? editedExpirations = null,
+		IReadOnlyDictionary<string, Guid>? editedReferences = null,
 		CancellationToken cancellationToken = default)
 	{
 		// Blazor Server는 클라이언트가 보낸 문자열을 그대로 바인딩하므로 화면 입력 제약과 무관하게
@@ -155,11 +156,14 @@ public sealed class SecretBundleService(
 
 			var changedExpirationKeys = await ApplyExpirationChangesAsync(
 				envId, kind, editedValues, editedExpirations, cancellationToken).ConfigureAwait(false);
+			var changedReferenceKeys = await ApplyReferenceChangesAsync(
+				envId, kind, editedValues, editedReferences, cancellationToken).ConfigureAwait(false);
 
 			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
 			// 값 자체는 시크릿이므로 절대 로그에 남기지 않는다.
-			var diff = DescribeKeyDiff(baseSnapshot, editedValues, changedExpirationKeys);
+			var diff = DescribeKeyDiff(
+				baseSnapshot, editedValues, changedExpirationKeys, changedReferenceKeys);
 			if (diff is not null)
 			{
 				var eventType = kind == SecretBundleKind.Base
@@ -300,6 +304,84 @@ public sealed class SecretBundleService(
 		return changedKeys;
 	}
 
+	// editedReferences(키 -> SharedSecretId)와 실제 SharedSecretReferences 행을 동기화한다.
+	// editedValues에서 사라진 키의 참조 행도 함께 정리한다(값이 지워지면 참조도 의미가 없음).
+	// 반환값은 감사 로그용으로 실제 변경(추가/변경/삭제)이 일어난 키 이름 목록이다.
+	private async Task<IReadOnlyList<string>> ApplyReferenceChangesAsync(
+		Guid envId,
+		SecretBundleKind kind,
+		IReadOnlyDictionary<string, string> editedValues,
+		IReadOnlyDictionary<string, Guid>? editedReferences,
+		CancellationToken cancellationToken)
+	{
+		var isOverwriteBundle = kind == SecretBundleKind.Overwrite;
+		var existingByKey = await db.SharedSecretReferences
+			.Where(r => r.EnvId == envId && r.IsOverwriteBundle == isOverwriteBundle)
+			.ToDictionaryAsync(r => r.KeyName, cancellationToken).ConfigureAwait(false);
+
+		var references = editedReferences ?? new Dictionary<string, Guid>();
+		var changedKeys = new List<string>();
+		var now = DateTimeOffset.UtcNow;
+
+		foreach (var valueKey in editedValues.Keys)
+		{
+			var hasExisting = existingByKey.TryGetValue(valueKey, out var existing);
+			var hasNewReference = references.TryGetValue(valueKey, out var newSharedSecretId);
+
+			if (!hasNewReference)
+			{
+				if (hasExisting)
+				{
+					db.SharedSecretReferences.Remove(existing!);
+					changedKeys.Add(valueKey);
+				}
+				continue;
+			}
+
+			if (hasExisting)
+			{
+				if (existing!.SharedSecretId != newSharedSecretId)
+				{
+					existing.SharedSecretId = newSharedSecretId;
+					existing.LastMaterializedAt = now;
+					changedKeys.Add(valueKey);
+				}
+				else
+				{
+					// 같은 SharedSecret을 그대로 참조 중이어도, 이번 저장이 그 값을 반영한
+					// 것이므로(예: cascade 재materialize) 동기화 시각은 갱신한다.
+					existing.LastMaterializedAt = now;
+				}
+			}
+			else
+			{
+				db.SharedSecretReferences.Add(new SharedSecretReference
+				{
+					Id = Guid.NewGuid(),
+					SharedSecretId = newSharedSecretId,
+					EnvId = envId,
+					IsOverwriteBundle = isOverwriteBundle,
+					KeyName = valueKey,
+					LastMaterializedAt = now,
+					CreatedAt = now,
+				});
+				changedKeys.Add(valueKey);
+			}
+		}
+
+		// editedValues에서 완전히 사라진(삭제된) 키의 참조 행도 함께 정리한다.
+		foreach (var (existingKey, existing) in existingByKey)
+		{
+			if (!editedValues.ContainsKey(existingKey))
+			{
+				db.SharedSecretReferences.Remove(existing);
+				changedKeys.Add(existingKey);
+			}
+		}
+
+		return changedKeys;
+	}
+
 	private async Task<SaveConflict> BuildConflictAsync(
 		string bucket,
 		string key,
@@ -355,7 +437,8 @@ public sealed class SecretBundleService(
 	private static string? DescribeKeyDiff(
 		IReadOnlyDictionary<string, string> before,
 		IReadOnlyDictionary<string, string> after,
-		IReadOnlyList<string> expirationsChanged)
+		IReadOnlyList<string> expirationsChanged,
+		IReadOnlyList<string> referencesChanged)
 	{
 		var added = after.Keys.Where(k => !before.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
 		var removed = before.Keys.Where(k => !after.ContainsKey(k))
@@ -364,16 +447,23 @@ public sealed class SecretBundleService(
 			.OrderBy(k => k, StringComparer.Ordinal).ToList();
 		var expirationsChangedSorted = expirationsChanged.Distinct()
 			.OrderBy(k => k, StringComparer.Ordinal).ToList();
+		var referencesChangedSorted = referencesChanged.Distinct()
+			.OrderBy(k => k, StringComparer.Ordinal).ToList();
 
 		var nothingChanged = added.Count == 0 && removed.Count == 0 && changed.Count == 0
-			&& expirationsChangedSorted.Count == 0;
+			&& expirationsChangedSorted.Count == 0 && referencesChangedSorted.Count == 0;
 		if (nothingChanged)
 		{
 			return null;
 		}
 
 		return System.Text.Json.JsonSerializer.Serialize(
-			new { added, changed, removed, expirationsChanged = expirationsChangedSorted },
+			new
+			{
+				added, changed, removed,
+				expirationsChanged = expirationsChangedSorted,
+				referencesChanged = referencesChangedSorted,
+			},
 			AuditJsonOptions.Default);
 	}
 

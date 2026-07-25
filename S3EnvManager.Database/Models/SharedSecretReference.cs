@@ -8,7 +8,7 @@ public class SharedSecretReference
 {
 	public Guid Id { get; init; }
 
-	public Guid SharedSecretId { get; init; }
+	public Guid SharedSecretId { get; set; }
 
 	public SharedSecret? SharedSecret { get; init; }
 

@@ -16,6 +16,10 @@ public interface ISecretBundleService
 		Guid envId, SecretBundleKind kind = SecretBundleKind.Base, CancellationToken cancellationToken = default);
 
 	// 저장 성공 시 감사 로그에는 어떤 키가 추가/변경/삭제됐는지만 남기고 값 자체는 남기지 않는다.
+	// editedReferences(키 이름 -> SharedSecretId)는 호출자(ISharedSecretReferenceService)가 이미
+	// 그랜트 검증과 값 resolve를 마친 뒤 넘긴다 - 여기서는 SharedSecretReference 행을
+	// KeyExpiration과 동일한 방식으로 같은 트랜잭션 안에서 upsert/delete만 한다(S3 PUT과 참조
+	// 행 기록이 분리되면 크래시로 dangling이 생길 수 있어 반드시 같은 트랜잭션이어야 한다).
 	Task<SaveOutcome> SaveAsync(
 		Guid envId,
 		IReadOnlyDictionary<string, string> baseSnapshot,
@@ -25,6 +29,7 @@ public interface ISecretBundleService
 		string? actorEmail = null,
 		SecretBundleKind kind = SecretBundleKind.Base,
 		IReadOnlyDictionary<string, DateTimeOffset?>? editedExpirations = null,
+		IReadOnlyDictionary<string, Guid>? editedReferences = null,
 		CancellationToken cancellationToken = default);
 
 	// 값은 복호화하지 않으므로, 오래된 버전을 감쌌던 CMK가 제거되어 있어도 실패하지 않는다.
