@@ -24,4 +24,12 @@ public static class AuditEventTypes
 	public const string FeatureSwitchChanged = "FeatureSwitchChanged";
 	public const string AutoProvisioningRun = "AutoProvisioningRun";
 	public const string DataProtectionCertificateRotated = "DataProtectionCertificateRotated";
+	public const string SharedSecretCreated = "SharedSecretCreated";
+	public const string SharedSecretUpdated = "SharedSecretUpdated";
+	public const string SharedSecretDeleted = "SharedSecretDeleted";
+	public const string SharedSecretGrantAdded = "SharedSecretGrantAdded";
+	public const string SharedSecretGrantRevoked = "SharedSecretGrantRevoked";
+	public const string SharedSecretReferenceAttached = "SharedSecretReferenceAttached";
+	public const string SharedSecretReferenceDetached = "SharedSecretReferenceDetached";
+	public const string SharedSecretCascadeMaterialized = "SharedSecretCascadeMaterialized";
 }

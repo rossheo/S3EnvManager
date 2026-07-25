@@ -9,7 +9,8 @@ namespace S3EnvManager.Web.Tests;
 /// fake로 복호화할 수 없다 - 세션 시작 시 한 번 비운다(static 초기화, 직렬 실행이라 안전).
 /// EphemeralDataProtectionProvider로 암호화하는 UserNotificationSettings도 같은 이유로 비운다 -
 /// 프로세스마다 새 마스터 키를 쓰므로 이전 프로세스가 Protect()한 웹훅 URL은 이번 프로세스의
-/// Unprotect()로 복호화할 수 없다.</summary>
+/// Unprotect()로 복호화할 수 없다. SharedSecrets는 DataKeyGenerations를 FK Restrict로 참조하므로
+/// DataKeyGenerations를 지우기 전에 먼저 비워야 한다.</summary>
 internal static class TestEnvironment
 {
 	private const string PostgresConnectionString =
@@ -35,6 +36,9 @@ internal static class TestEnvironment
 			new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(PostgresConnectionString).Options);
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"AppCredentials\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"DbBackupAccountCredentials\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecretReferences\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecretAppGrants\"");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecrets\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"DataKeyGenerations\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"UserNotificationSettings\"");
 		return true;

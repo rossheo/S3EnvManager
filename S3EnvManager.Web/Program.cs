@@ -153,6 +153,7 @@ builder.Services.AddScoped<IUserNotificationSettingsService, UserNotificationSet
 builder.Services.AddScoped<IUserNotificationAlertSwitchService, UserNotificationAlertSwitchService>();
 builder.Services.AddHttpClient<IDiscordNotifier, DiscordNotifier>();
 builder.Services.AddHostedService<KeyExpirationNotificationBackgroundService>();
+builder.Services.AddScoped<ISharedSecretService, SharedSecretService>();
 
 var app = builder.Build();
 

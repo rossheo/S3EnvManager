@@ -45,6 +45,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 	public DbSet<UserNotificationAlertSwitch> UserNotificationAlertSwitches =>
 		Set<UserNotificationAlertSwitch>();
 
+	public DbSet<SharedSecret> SharedSecrets => Set<SharedSecret>();
+
+	public DbSet<SharedSecretAppGrant> SharedSecretAppGrants => Set<SharedSecretAppGrant>();
+
+	public DbSet<SharedSecretReference> SharedSecretReferences => Set<SharedSecretReference>();
+
 	protected override void OnModelCreating(ModelBuilder builder)
 	{
 		base.OnModelCreating(builder);
@@ -161,6 +167,43 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 			entity.HasOne(s => s.User)
 				.WithMany()
 				.HasForeignKey(s => s.UserId)
+				.OnDelete(DeleteBehavior.Cascade);
+		});
+
+		builder.Entity<SharedSecret>(entity =>
+		{
+			entity.HasIndex(s => s.Name).IsUnique();
+			entity.HasOne(s => s.DataKey)
+				.WithMany()
+				.HasForeignKey(s => s.DataKeyId)
+				.OnDelete(DeleteBehavior.Restrict);
+		});
+
+		builder.Entity<SharedSecretAppGrant>(entity =>
+		{
+			entity.HasIndex(g => new { g.SharedSecretId, g.AppId }).IsUnique();
+			entity.HasOne(g => g.SharedSecret)
+				.WithMany()
+				.HasForeignKey(g => g.SharedSecretId)
+				.OnDelete(DeleteBehavior.Cascade);
+			entity.HasOne(g => g.App)
+				.WithMany()
+				.HasForeignKey(g => g.AppId)
+				.OnDelete(DeleteBehavior.Cascade);
+		});
+
+		builder.Entity<SharedSecretReference>(entity =>
+		{
+			entity.HasIndex(r => new { r.EnvId, r.IsOverwriteBundle, r.KeyName }).IsUnique();
+			// 참조가 남아있으면 SharedSecret을 DB 레벨에서 삭제할 수 없다 - dangling reference
+			// 방지의 최종 안전장치(서비스 코드는 반드시 삭제 전에 모든 참조를 detach해야 한다).
+			entity.HasOne(r => r.SharedSecret)
+				.WithMany()
+				.HasForeignKey(r => r.SharedSecretId)
+				.OnDelete(DeleteBehavior.Restrict);
+			entity.HasOne(r => r.Env)
+				.WithMany()
+				.HasForeignKey(r => r.EnvId)
 				.OnDelete(DeleteBehavior.Cascade);
 		});
 	}
