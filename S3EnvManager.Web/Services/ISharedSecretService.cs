@@ -46,6 +46,11 @@ public interface ISharedSecretService
 
 	Task<IReadOnlyList<SharedSecretReferenceInfo>> ListReferencesAsync(
 		Guid sharedSecretId, CancellationToken cancellationToken = default);
+
+	// 값 변경 없이 cascade 재materialize만 다시 실행한다("지금 다시 동기화") - 멱등이라 이전
+	// UpdateAsync에서 일부 App이 실패했을 때 재시도 용도로 안전하게 쓸 수 있다.
+	Task<SharedSecretUpdateResult> ResyncAsync(
+		Guid id, string? actorUserId, CancellationToken cancellationToken = default);
 }
 
 public sealed record SharedSecretReferenceInfo(

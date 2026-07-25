@@ -129,6 +129,87 @@ public class SharedSecretReferenceServiceTests
 		Assert.Equal("detach-value", session.Values["EXTERNAL_API_KEY"]);
 	}
 
+	[Fact]
+	public async Task UpdateAsync_CascadesNewValueToAllReferencingApps_WithoutDisturbingOwnKeys()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (appA, envA) = await fixture.RegisterAppAsync("shref-e-a-" + Guid.NewGuid().ToString("N")[..8]);
+		var (appB, envB) = await fixture.RegisterAppAsync("shref-e-b-" + Guid.NewGuid().ToString("N")[..8]);
+
+		var sharedSecretService = fixture.CreateSharedSecretService();
+		var sharedSecretId = await sharedSecretService.CreateAsync(
+			"ext-api-" + Guid.NewGuid().ToString("N")[..8], null, "v1", null, actorUserId: null);
+		await sharedSecretService.GrantAsync(sharedSecretId, appA.Id, actorUserId: null);
+		await sharedSecretService.GrantAsync(sharedSecretId, appB.Id, actorUserId: null);
+
+		var referenceService = fixture.CreateReferenceService();
+		var editedReferences = new Dictionary<string, Guid> { ["EXTERNAL_API_KEY"] = sharedSecretId };
+
+		// App A는 자체 소유 키도 하나 가진 상태에서 참조를 추가한다 - cascade가 그 키를
+		// 건드리지 않아야 한다.
+		await referenceService.SaveWithReferencesAsync(
+			envA.Id, new Dictionary<string, string>(), null,
+			new Dictionary<string, string> { ["OWN_KEY"] = "own-value" },
+			editedReferences, actorUserId: null, actorEmail: null, SecretBundleKind.Base);
+		await referenceService.SaveWithReferencesAsync(
+			envB.Id, new Dictionary<string, string>(), null, new Dictionary<string, string>(),
+			editedReferences, actorUserId: null, actorEmail: null, SecretBundleKind.Base);
+
+		var result = await sharedSecretService.UpdateAsync(
+			sharedSecretId, description: null, newValue: "v2-rotated", expiresAt: null, actorUserId: null);
+		Assert.Empty(result.Failures);
+
+		var bundleService = fixture.CreateBundleService();
+		var sessionA = await bundleService.LoadForEditAsync(envA.Id);
+		var sessionB = await bundleService.LoadForEditAsync(envB.Id);
+		Assert.Equal("v2-rotated", sessionA.Values["EXTERNAL_API_KEY"]);
+		Assert.Equal("v2-rotated", sessionB.Values["EXTERNAL_API_KEY"]);
+		Assert.Equal("own-value", sessionA.Values["OWN_KEY"]);
+
+		await using var db = Fixture.CreateDbContext();
+		var referenceA = await db.SharedSecretReferences.AsNoTracking()
+			.SingleAsync(r => r.EnvId == envA.Id && r.KeyName == "EXTERNAL_API_KEY");
+		var secretAfter = await db.SharedSecrets.AsNoTracking().SingleAsync(s => s.Id == sharedSecretId);
+		Assert.True(referenceA.LastMaterializedAt >= secretAfter.UpdatedAt.AddSeconds(-1));
+	}
+
+	[Fact]
+	public async Task ResyncAsync_IsIdempotent_AndUpdatesLastMaterializedAtWithoutChangingValue()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (app, env) = await fixture.RegisterAppAsync("shref-f-" + Guid.NewGuid().ToString("N")[..8]);
+
+		var sharedSecretService = fixture.CreateSharedSecretService();
+		var sharedSecretId = await sharedSecretService.CreateAsync(
+			"ext-api-" + Guid.NewGuid().ToString("N")[..8], null, "stable-value", null, actorUserId: null);
+		await sharedSecretService.GrantAsync(sharedSecretId, app.Id, actorUserId: null);
+
+		var referenceService = fixture.CreateReferenceService();
+		var editedReferences = new Dictionary<string, Guid> { ["EXTERNAL_API_KEY"] = sharedSecretId };
+		await referenceService.SaveWithReferencesAsync(
+			env.Id, new Dictionary<string, string>(), null, new Dictionary<string, string>(),
+			editedReferences, actorUserId: null, actorEmail: null, SecretBundleKind.Base);
+
+		var result1 = await sharedSecretService.ResyncAsync(sharedSecretId, actorUserId: null);
+		var result2 = await sharedSecretService.ResyncAsync(sharedSecretId, actorUserId: null);
+		Assert.Empty(result1.Failures);
+		Assert.Empty(result2.Failures);
+
+		var bundleService = fixture.CreateBundleService();
+		var session = await bundleService.LoadForEditAsync(env.Id);
+		Assert.Equal("stable-value", session.Values["EXTERNAL_API_KEY"]);
+	}
+
 	private static Task<bool> IsEnvironmentAvailableAsync() => TestEnvironment.IsPostgresAvailableAsync();
 
 	private sealed class Fixture
@@ -163,7 +244,7 @@ public class SharedSecretReferenceServiceTests
 
 		public SharedSecretService CreateSharedSecretService() => new(
 			CreateDbContext(), new AppSecretKeyCipher(CreateDbContext(), Kms, new DataKeyCache()),
-			new AuditLogger(CreateDbContext()));
+			new AuditLogger(CreateDbContext()), CreateBundleService());
 
 		public SharedSecretReferenceService CreateReferenceService() => new(
 			CreateDbContext(), CreateBundleService(),

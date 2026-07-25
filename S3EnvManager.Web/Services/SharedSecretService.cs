@@ -5,7 +5,8 @@ using S3EnvManager.Database.Models;
 namespace S3EnvManager.Web.Services;
 
 public sealed class SharedSecretService(
-	ApplicationDbContext db, IAppSecretKeyCipher cipher, IAuditLogger auditLogger)
+	ApplicationDbContext db, IAppSecretKeyCipher cipher, IAuditLogger auditLogger,
+	ISecretBundleService bundleService)
 	: ISharedSecretService
 {
 	public async Task<List<SharedSecretSummary>> ListAsync(CancellationToken cancellationToken = default)
@@ -66,10 +67,12 @@ public sealed class SharedSecretService(
 		Guid id, string? description, string? newValue, DateTimeOffset? expiresAt,
 		string? actorUserId, CancellationToken cancellationToken = default)
 	{
-		var failures = new List<SharedSecretCascadeFailure>();
-
 		// NpgsqlRetryingExecutionStrategy는 수동 트랜잭션을 재시도 단위 밖에서 여는 것을 허용하지
-		// 않으므로 시작~커밋 전체를 delegate 안에 넣는다.
+		// 않으므로 시작~커밋 전체를 delegate 안에 넣는다. SecretBundleService.SaveAsync가 Env별로
+		// 자기 트랜잭션을 여는 것과 겹칠 수 없으므로(같은 DbContext에서 트랜잭션 중첩 불가),
+		// SharedSecret 자체의 값 갱신은 여기서 잠금+커밋까지 마치고, cascade 재materialize는
+		// 이 트랜잭션이 끝난 뒤 별도로 실행한다 - 대신 각 Env 저장은 SecretBundleService.SaveAsync
+		// 자신의 FOR UPDATE(Env 행) + ETag 검사로 개별적으로 안전하다.
 		var strategy = db.Database.CreateExecutionStrategy();
 		await strategy.ExecuteAsync(async () =>
 		{
@@ -77,8 +80,6 @@ public sealed class SharedSecretService(
 			await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken)
 				.ConfigureAwait(false);
 
-			// 같은 SharedSecret에 대한 동시 갱신이 뒤섞이지 않도록 행을 잠근다 - cascade
-			// 재materialize(Phase 4)까지 이 잠금 아래에서 실행된다.
 			var locked = await db.SharedSecrets
 				.FromSqlInterpolated($"SELECT * FROM \"SharedSecrets\" WHERE \"Id\" = {id} FOR UPDATE")
 				.SingleAsync(cancellationToken).ConfigureAwait(false);
@@ -93,14 +94,6 @@ public sealed class SharedSecretService(
 					.ConfigureAwait(false);
 				locked.Ciphertext = ciphertext;
 				locked.DataKeyId = dataKeyId;
-
-				// Phase 4에서 여기에 참조하는 모든 (EnvId, IsOverwriteBundle)를 순회하며
-				// ISecretBundleService.SaveAsync로 재materialize하는 cascade를 채운다. 아직
-				// SharedSecretReference를 만드는 경로(Phase 3)가 없으므로 지금은 항상 빈 목록이다.
-				var references = await db.SharedSecretReferences.AsNoTracking()
-					.Where(r => r.SharedSecretId == id)
-					.ToListAsync(cancellationToken).ConfigureAwait(false);
-				_ = references; // Phase 4에서 실제 cascade 로직으로 대체.
 			}
 
 			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -114,7 +107,107 @@ public sealed class SharedSecretService(
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 		}).ConfigureAwait(false);
 
+		if (newValue is null)
+		{
+			return new SharedSecretUpdateResult([]);
+		}
+
+		var failures = await CascadeMaterializeAsync(id, newValue, actorUserId, cancellationToken)
+			.ConfigureAwait(false);
 		return new SharedSecretUpdateResult(failures);
+	}
+
+	public async Task<SharedSecretUpdateResult> ResyncAsync(
+		Guid id, string? actorUserId, CancellationToken cancellationToken = default)
+	{
+		var entity = await db.SharedSecrets.AsNoTracking()
+			.SingleAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false);
+		var currentValue = await cipher.DecryptAsync(entity.Ciphertext, entity.DataKeyId, cancellationToken)
+			.ConfigureAwait(false);
+
+		var failures = await CascadeMaterializeAsync(id, currentValue, actorUserId, cancellationToken)
+			.ConfigureAwait(false);
+		return new SharedSecretUpdateResult(failures);
+	}
+
+	// 참조하는 모든 (Env, kind)에 새 값을 재materialize한다. App 단위로 실패를 격리해 계속
+	// 진행하고, ETag 충돌은 1회 재시도한다. 멱등이라 값 변경 없이도(ResyncAsync) 안전하게
+	// 다시 실행할 수 있다.
+	private async Task<List<SharedSecretCascadeFailure>> CascadeMaterializeAsync(
+		Guid sharedSecretId, string newValue, string? actorUserId, CancellationToken cancellationToken)
+	{
+		var references = await db.SharedSecretReferences.AsNoTracking()
+			.Where(r => r.SharedSecretId == sharedSecretId)
+			.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+		var failures = new List<SharedSecretCascadeFailure>();
+		foreach (var group in references.GroupBy(r => (r.EnvId, r.IsOverwriteBundle)))
+		{
+			var (envId, isOverwriteBundle) = group.Key;
+			var kind = isOverwriteBundle ? SecretBundleKind.Overwrite : SecretBundleKind.Base;
+			var keyNames = group.Select(r => r.KeyName).ToList();
+
+			try
+			{
+				var outcome = await MaterializeOneEnvAsync(
+					envId, kind, sharedSecretId, keyNames, newValue, actorUserId, cancellationToken)
+					.ConfigureAwait(false);
+				if (outcome is SaveConflict retryConflict)
+				{
+					// ETag 경합 1회 재시도.
+					outcome = await MaterializeOneEnvAsync(
+						envId, kind, sharedSecretId, keyNames, newValue, actorUserId, cancellationToken)
+						.ConfigureAwait(false);
+				}
+
+				if (outcome is SaveSuccess)
+				{
+					var appId = await db.Envs.AsNoTracking()
+						.Where(e => e.Id == envId).Select(e => e.AppId).SingleAsync(cancellationToken)
+						.ConfigureAwait(false);
+					var details = System.Text.Json.JsonSerializer.Serialize(
+						new { sharedSecretId, keyNames }, AuditJsonOptions.Default);
+					await auditLogger.LogAsync(
+						AuditEventTypes.SharedSecretCascadeMaterialized, actorUserId, appId, details,
+						cancellationToken).ConfigureAwait(false);
+				}
+				else
+				{
+					var reason = outcome switch
+					{
+						SaveFailed failed => failed.Reason,
+						SaveConflict => "동시 편집 충돌이 재시도 후에도 해소되지 않았습니다.",
+						_ => "알 수 없는 오류",
+					};
+					failures.Add(new SharedSecretCascadeFailure(envId, isOverwriteBundle, reason));
+				}
+			}
+			catch (Exception ex)
+			{
+				failures.Add(new SharedSecretCascadeFailure(envId, isOverwriteBundle, ex.Message));
+			}
+		}
+
+		return failures;
+	}
+
+	private async Task<SaveOutcome> MaterializeOneEnvAsync(
+		Guid envId, SecretBundleKind kind, Guid sharedSecretId, IReadOnlyList<string> keyNames,
+		string newValue, string? actorUserId, CancellationToken cancellationToken)
+	{
+		var session = await bundleService.LoadForEditAsync(envId, kind, cancellationToken)
+			.ConfigureAwait(false);
+		var editedValues = new Dictionary<string, string>(session.Values);
+		var editedReferences = new Dictionary<string, Guid>();
+		foreach (var keyName in keyNames)
+		{
+			editedValues[keyName] = newValue;
+			editedReferences[keyName] = sharedSecretId;
+		}
+
+		return await bundleService.SaveAsync(
+			envId, session.Values, session.BaseETag, editedValues, actorUserId, actorEmail: null, kind,
+			editedExpirations: null, editedReferences, cancellationToken).ConfigureAwait(false);
 	}
 
 	public async Task DeleteAsync(

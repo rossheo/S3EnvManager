@@ -304,9 +304,13 @@ public sealed class SecretBundleService(
 		return changedKeys;
 	}
 
-	// editedReferences(키 -> SharedSecretId)와 실제 SharedSecretReferences 행을 동기화한다.
-	// editedValues에서 사라진 키의 참조 행도 함께 정리한다(값이 지워지면 참조도 의미가 없음).
-	// 반환값은 감사 로그용으로 실제 변경(추가/변경/삭제)이 일어난 키 이름 목록이다.
+	// editedReferences(키 -> SharedSecretId)에 담긴 키만 upsert한다 - editedReferences는 "이번
+	// 저장이 아는 참조 전부"가 아니라 "이번 저장이 다루는 참조만" 담는 부분 맵으로 취급한다.
+	// 그래야 cascade 재materialize(Phase 4)처럼 한 Env의 참조 중 일부(재전파 대상 SharedSecret에
+	// 걸린 키)만 아는 호출자도 안전하게 SaveAsync를 쓸 수 있다 - 명시적 연결 해제는
+	// ISharedSecretReferenceService.DetachAsync가 별도로 처리하므로 여기서는 "언급 안 된 키의
+	// 기존 참조를 지운다"는 동작을 하지 않는다. editedValues에서 완전히 사라진(삭제된) 키의
+	// 참조 행만 함께 정리한다. 반환값은 감사 로그용으로 실제 변경이 일어난 키 이름 목록이다.
 	private async Task<IReadOnlyList<string>> ApplyReferenceChangesAsync(
 		Guid envId,
 		SecretBundleKind kind,
@@ -330,11 +334,6 @@ public sealed class SecretBundleService(
 
 			if (!hasNewReference)
 			{
-				if (hasExisting)
-				{
-					db.SharedSecretReferences.Remove(existing!);
-					changedKeys.Add(valueKey);
-				}
 				continue;
 			}
 
