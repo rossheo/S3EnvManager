@@ -14,6 +14,8 @@ public class BootstrapPolicyDocumentTests
 		Assert.Contains("aws:RequestTag/s3envmanager-managed", json);
 		Assert.Contains("kms:CreateKey", json);
 		Assert.Contains("kms:PutKeyPolicy", json);
+		Assert.Contains("kms:ScheduleKeyDeletion", json);
+		Assert.Contains("kms:CancelKeyDeletion", json);
 		Assert.DoesNotContain("REGION", json);
 		Assert.DoesNotContain("ACCOUNT", json);
 	}

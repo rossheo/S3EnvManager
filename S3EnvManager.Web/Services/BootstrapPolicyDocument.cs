@@ -79,7 +79,9 @@ public static class BootstrapPolicyDocument
 		      "Action": [
 		        "kms:PutKeyPolicy",
 		        "kms:GetKeyPolicy",
-		        "kms:EnableKeyRotation"
+		        "kms:EnableKeyRotation",
+		        "kms:ScheduleKeyDeletion",
+		        "kms:CancelKeyDeletion"
 		      ],
 		      "Resource": "*",
 		      "Condition": {
