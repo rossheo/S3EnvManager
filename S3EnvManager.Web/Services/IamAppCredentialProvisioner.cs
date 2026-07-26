@@ -101,6 +101,10 @@ public sealed class IamAppCredentialProvisioner(IAmazonIdentityManagementService
 
 	// GetObjectVersion은 부여하지 않아 noncurrent 버전 접근 불가. kms:Decrypt는 app role CMK
 	// 전부(활성+보조)에 부여한다 - 옛 시크릿이 승격 전 CMK로 감싸져 있을 수 있어 활성 하나로는 부족.
+	// s3:ListBucket 없으면 아직 저장 안 된 번들(base .env가 최초 배포라 존재하지 않는 경우 등)에
+	// 대한 GetObject가 404 대신 403이 되는 AWS 의도적 동작 때문에(BootstrapPolicyDocumentTests
+	// 참고), Application 측 S3EnvManager.Configuration Provider가 OptionalIfMissing 여부와
+	// 무관하게 무조건 예외를 던진다 - 버킷 전체가 아니라 자신의 prefix로만 ListBucket을 스코프한다.
 	private static string BuildPolicyDocument(
 		string appName, string bucket, IReadOnlyCollection<string> appFacingCmkArns)
 	{
@@ -109,6 +113,15 @@ public sealed class IamAppCredentialProvisioner(IAmazonIdentityManagementService
 		{
 		  "Version": "2012-10-17",
 		  "Statement": [
+		    {
+		      "Sid": "ListOwnPrefix",
+		      "Effect": "Allow",
+		      "Action": "s3:ListBucket",
+		      "Resource": "arn:aws:s3:::{{bucket}}",
+		      "Condition": {
+		        "StringLike": { "s3:prefix": "{{appName}}/*" }
+		      }
+		    },
 		    {
 		      "Sid": "ReadOwnSecretBundles",
 		      "Effect": "Allow",
