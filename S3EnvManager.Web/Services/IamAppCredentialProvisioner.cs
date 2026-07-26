@@ -125,7 +125,7 @@ public sealed class IamAppCredentialProvisioner(IAmazonIdentityManagementService
 		    {
 		      "Sid": "ReadOwnSecretBundles",
 		      "Effect": "Allow",
-		      "Action": ["s3:GetObject", "s3:HeadObject"],
+		      "Action": "s3:GetObject",
 		      "Resource": "arn:aws:s3:::{{bucket}}/{{appName}}/*"
 		    },
 		    {
