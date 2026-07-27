@@ -88,7 +88,7 @@ public sealed class FakeSecretObjectStore : ISecretObjectStore
 	{
 		var versions = VersionsFor(bucket, key);
 		var result = versions.Select((v, i) => new SecretObjectVersion(
-			v.VersionId, i == versions.Count - 1, v.LastModified, includeActorEmail ? v.ActorEmail : null))
+			v.VersionId, i == versions.Count - 1, v.LastModified, v.ETag, includeActorEmail ? v.ActorEmail : null))
 			.ToList();
 		return Task.FromResult(result);
 	}

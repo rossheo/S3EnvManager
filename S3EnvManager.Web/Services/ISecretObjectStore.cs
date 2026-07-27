@@ -6,7 +6,7 @@ public sealed record PutSecretObjectResult(string ETag, string? VersionId);
 
 // ActorEmail은 CMK 재래핑 등 시스템 작업이 쓴 버전이거나 이 기능 추가 이전 버전은 null.
 public sealed record SecretObjectVersion(
-	string VersionId, bool IsLatest, DateTimeOffset LastModified, string? ActorEmail = null);
+	string VersionId, bool IsLatest, DateTimeOffset LastModified, string ETag, string? ActorEmail = null);
 
 public interface ISecretObjectStore
 {

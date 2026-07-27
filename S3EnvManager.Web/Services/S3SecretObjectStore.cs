@@ -83,7 +83,8 @@ public sealed class S3SecretObjectStore(IAmazonS3ClientProvider s3ClientProvider
 				: null;
 			versions.Add(new SecretObjectVersion(
 				v.VersionId, v.IsLatest ?? false,
-				new DateTimeOffset(DateTime.SpecifyKind(v.LastModified!.Value, DateTimeKind.Utc)), actorEmail));
+				new DateTimeOffset(DateTime.SpecifyKind(v.LastModified!.Value, DateTimeKind.Utc)),
+				Unquote(v.ETag), actorEmail));
 		}
 		return versions;
 	}
