@@ -354,6 +354,40 @@ public class SecretBundleServiceTests
 		Assert.Equal(initialSuccess.NewETag, afterRollback.BaseETag);
 	}
 
+	// 저장 직후 자체 검증이 KMS를 다시 부르지 않고 로컬 데이터 키로만 값/MAC을 확인하므로, 값은
+	// 멀쩡한데 트레일러(admin ARN)만 깨진 경우를 값 비교만으로는 못 잡을 위험이 있다 - 검증이 트레일러
+	// 구조까지 함께 확인해 여전히 실패로 처리하고 롤백하는지 확인한다.
+	[Fact]
+	public async Task VerificationFailure_WhenTrailerTampered_RollsBackEvenThoughValuesMatch()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (app, env) = await fixture.RegisterAppAsync("trailer-" + Guid.NewGuid().ToString("N")[..8]);
+		var normalService = fixture.CreateService();
+
+		var initialValues = new Dictionary<string, string> { ["A"] = "1" };
+		var initial = await normalService.SaveAsync(env.Id, new Dictionary<string, string>(), null, initialValues);
+		var initialSuccess = Assert.IsType<SaveSuccess>(initial);
+
+		var session = await normalService.LoadForEditAsync(env.Id);
+		Assert.Equal(initialValues, session.Values);
+
+		// put 이후 두 번째 GetCurrentAsync 호출(검증 단계)에서만 트레일러의 admin ARN을 바꿔치기한다.
+		var tamperingService = fixture.CreateService(
+			store => new TrailerTamperingSecretObjectStore(store, tamperOnCallNumber: 2));
+		var badOutcome = await tamperingService.SaveAsync(env.Id, session.Values, session.BaseETag,
+			new Dictionary<string, string> { ["A"] = "2" });
+		Assert.IsType<SaveFailed>(badOutcome);
+
+		var afterRollback = await normalService.LoadForEditAsync(env.Id);
+		Assert.Equal(initialValues, afterRollback.Values);
+		Assert.Equal(initialSuccess.NewETag, afterRollback.BaseETag);
+	}
+
 	[Fact]
 	public async Task SetExpiration_SaveThenReload_PersistsExpiration_AndAuditsChange()
 	{

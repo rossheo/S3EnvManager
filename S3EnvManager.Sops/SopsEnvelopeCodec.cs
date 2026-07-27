@@ -12,9 +12,10 @@ public static class SopsEnvelopeCodec
 	/// <summary>
 	/// key=value 목록을 암호화해 sops dotenv 파일 내용을 만든다. 두 CMK를 최소 권한 자격증명
 	/// (admin: GenerateDataKey, app: Encrypt만)으로 호출할 수 있도록 KMS 클라이언트를 role별로
-	/// 분리해서 받는다.
+	/// 분리해서 받는다. 생성된 평문 데이터 키도 함께 반환한다 - 호출자가 직후 자체 검증을 위해
+	/// 다시 KMS Decrypt를 부르지 않고 <see cref="DecryptWithDataKey"/>로 로컬 검증할 수 있도록.
 	/// </summary>
-	public static async Task<string> EncryptAsync(
+	public static async Task<SopsEncryptResult> EncryptAsync(
 		IEnumerable<KeyValuePair<string, string>> plaintextValues,
 		string adminCmkArn,
 		string appCmkArn,
@@ -53,7 +54,7 @@ public static class SopsEnvelopeCodec
 		document.EncryptedMac = SopsValueCipher.Encrypt(
 			macPlaintext, dataKey, MacAdditionalData(document.LastModified));
 
-		return document.Serialize();
+		return new SopsEncryptResult(document.Serialize(), dataKey);
 	}
 
 	/// <summary>S3EnvManager 자신의 재편집 경로 - admin(primary) 엔트리(index 0)로 복호화한다.</summary>
@@ -88,6 +89,46 @@ public static class SopsEnvelopeCodec
 			entry.Arn, entry.CiphertextBlob, entry.EncryptionContext, cancellationToken)
 			.ConfigureAwait(false);
 
+		return DecryptWithDataKey(document, dataKey);
+	}
+
+	/// <summary>
+	/// 이미 알고 있는 평문 데이터 키로 로컬에서 복호화한다(KMS 호출 없음). 저장 직후 자체 검증처럼
+	/// 같은 호출 안에서 <see cref="EncryptAsync"/>가 이미 만든 데이터 키를 그대로 아는 경우에만
+	/// 쓴다 - 다른 곳에서 받은 데이터 키를 신뢰하고 복호화하는 것이므로 호출자가 그 출처를
+	/// 책임진다. KMS 트레일러 자체는 건드리지 않으므로(값/MAC만 검증) 트레일러 손상 여부까지
+	/// 확인하려면 <see cref="DecryptWithDataKeyAndVerifyTrailer"/>를 쓴다.
+	/// </summary>
+	public static Dictionary<string, string> DecryptWithDataKey(string fileContent, byte[] dataKey) =>
+		DecryptWithDataKey(SopsDotEnvDocument.Parse(fileContent), dataKey);
+
+	/// <summary>
+	/// <see cref="DecryptWithDataKey(string,byte[])"/>와 같지만, 트레일러가 정확히 admin/app
+	/// 엔트리 2개를 예상한 ARN·비어있지 않은 ciphertext로 담고 있는지도 함께 확인한다. 저장 직후
+	/// 자체 검증에 쓴다 - "값은 맞지만 트레일러가 깨져서 아무도 다시 열 수 없는 번들"을 잡아내기
+	/// 위한 것으로, KMS Decrypt로 트레일러를 실제로 여는 대신 구조만 확인한다(트레일러의
+	/// ciphertext blob 자체는 이번 저장에서 막 KMS로 만든 것이라 신뢰할 수 있음).
+	/// </summary>
+	public static Dictionary<string, string> DecryptWithDataKeyAndVerifyTrailer(
+		string fileContent, byte[] dataKey, string expectedAdminCmkArn, string expectedAppCmkArn)
+	{
+		var document = SopsDotEnvDocument.Parse(fileContent);
+		var isValidTrailer = document.KmsEntries.Count == 2
+			&& document.KmsEntries[0].Arn == expectedAdminCmkArn
+			&& document.KmsEntries[0].CiphertextBlob.Length > 0
+			&& document.KmsEntries[1].Arn == expectedAppCmkArn
+			&& document.KmsEntries[1].CiphertextBlob.Length > 0;
+		if (!isValidTrailer)
+		{
+			throw new InvalidOperationException(
+				"저장된 KMS 트레일러가 예상과 다릅니다(엔트리 손상/누락 의심).");
+		}
+
+		return DecryptWithDataKey(document, dataKey);
+	}
+
+	private static Dictionary<string, string> DecryptWithDataKey(SopsDotEnvDocument document, byte[] dataKey)
+	{
 		var values = new Dictionary<string, string>();
 		var macCalculator = new SopsMacCalculator();
 		foreach (var (key, encryptedValue) in document.Entries)
@@ -115,3 +156,7 @@ public static class SopsEnvelopeCodec
 	private static string MacAdditionalData(DateTimeOffset lastModified) =>
 		SopsDotEnvDocument.FormatRfc3339(lastModified);
 }
+
+/// <summary><see cref="SopsEnvelopeCodec.EncryptAsync"/>의 결과 - 암호화된 파일 내용과, 자체
+/// 검증을 KMS 재호출 없이 로컬에서 할 수 있도록 생성된 평문 데이터 키를 함께 담는다.</summary>
+public sealed record SopsEncryptResult(string Content, byte[] DataKey);

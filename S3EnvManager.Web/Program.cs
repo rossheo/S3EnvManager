@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Memory;
 using MudBlazor.Services;
 using S3EnvManager.Database;
 using S3EnvManager.Sops;
@@ -112,7 +113,9 @@ builder.Services.AddKeyedSingleton<IAmazonKeyManagementService>(CmkRole.App, (sp
 	return appAwsOptions.CreateServiceClient<IAmazonKeyManagementService>();
 });
 builder.Services.AddKeyedSingleton<IKmsKeyOperations>(CmkRole.App, (sp, _) =>
-	new AwsKmsKeyOperations(sp.GetRequiredKeyedService<IAmazonKeyManagementService>(CmkRole.App)));
+	new CachingKmsKeyOperations(
+		new AwsKmsKeyOperations(sp.GetRequiredKeyedService<IAmazonKeyManagementService>(CmkRole.App)),
+		sp.GetRequiredService<IMemoryCache>()));
 builder.Services.AddScoped<IAwsBootstrapCredentialStore, AwsBootstrapCredentialStore>();
 
 builder.Services.AddScoped<IKmsKeyAdministration, AwsKmsKeyAdministration>();
@@ -128,7 +131,10 @@ builder.Services.AddSingleton<IAmazonS3ClientProvider, AmazonS3ClientProvider>()
 builder.Services.AddScoped<IBucketComplianceOperations, S3BucketComplianceOperations>();
 builder.Services.AddScoped<IBucketSelfHealService, BucketSelfHealService>();
 builder.Services.AddScoped<IAppRegistrationService, AppRegistrationService>();
-builder.Services.AddScoped<IKmsKeyOperations, AwsKmsKeyOperations>();
+builder.Services.AddScoped<IKmsKeyOperations>(sp =>
+	new CachingKmsKeyOperations(
+		new AwsKmsKeyOperations(sp.GetRequiredService<IAmazonKeyManagementService>()),
+		sp.GetRequiredService<IMemoryCache>()));
 builder.Services.AddScoped<ISecretObjectStore, S3SecretObjectStore>();
 builder.Services.AddScoped<ISecretBundleService, SecretBundleService>();
 builder.Services.AddSingleton<IDataKeyCache, DataKeyCache>();

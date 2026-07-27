@@ -100,21 +100,22 @@ public sealed class SecretBundleService(
 			// 검증 실패 시 되돌릴 직전 버전을 쓰기 전에 미리 잡아둔다.
 			var previous = await store.GetCurrentAsync(bucket, key, cancellationToken).ConfigureAwait(false);
 
-			var encryptedContent = await SopsEnvelopeCodec.EncryptAsync(
+			var encryptResult = await SopsEnvelopeCodec.EncryptAsync(
 				editedValues, adminArn, appArn, app.Name, kms, appKms, cancellationToken)
 				.ConfigureAwait(false);
-			var putResult = await store.PutAsync(bucket, key, encryptedContent, actorEmail, cancellationToken)
+			var putResult = await store.PutAsync(bucket, key, encryptResult.Content, actorEmail, cancellationToken)
 				.ConfigureAwait(false);
 
-			// 복호화 실패 등 검증 자체 예외도 값 불일치와 동일하게 취급해 롤백한다.
+			// 복호화 실패 등 검증 자체 예외도 값 불일치와 동일하게 취급해 롤백한다. 데이터 키는
+			// 바로 위 EncryptAsync가 이미 만든 것과 같으므로 KMS를 다시 부르지 않고 로컬에서
+			// 검증한다(S3 round-trip 자체는 여전히 다시 읽어서 확인한다).
 			var verificationPassed = false;
 			try
 			{
 				var verifyStored = await store.GetCurrentAsync(bucket, key, cancellationToken).ConfigureAwait(false)
 					?? throw new InvalidOperationException("방금 저장한 오브젝트를 다시 읽을 수 없습니다.");
-				var verifiedValues = await SopsEnvelopeCodec.DecryptAsAdminAsync(
-					verifyStored.Content, kms, cancellationToken)
-					.ConfigureAwait(false);
+				var verifiedValues = SopsEnvelopeCodec.DecryptWithDataKeyAndVerifyTrailer(
+					verifyStored.Content, encryptResult.DataKey, adminArn, appArn);
 				verificationPassed = ValuesEqual(verifiedValues, editedValues);
 			}
 			catch
