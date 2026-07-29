@@ -1,7 +1,6 @@
 @page "/apps"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{IdentityRoleNames.Administrator},{IdentityRoleNames.Member}")]
-@implements IDisposable
 
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
@@ -12,11 +11,9 @@
 
 @inject IAppRegistrationService AppRegistrationService
 @inject IAppDeletionService AppDeletionService
-@inject ISecretBundleService SecretBundleService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JsRuntime
 @inject ISnackbar Snackbar
-@inject ILogger<Index> Logger
 
 <MudPopoverProvider />
 <MudDialogProvider />
@@ -63,12 +60,12 @@ else
 							@{ var editHref = $"/apps/{context.Id}/edit/{env.Name.ToObjectSegment()}"; }
 							<MudChip T="string" Size="Size.Small" Color="@EnvColor(env.Name)" Variant="Variant.Filled"
 								OnClick="@(() => NavigationManager.NavigateTo(editHref))">
-								@($"{EnvLabel(env.Name)}({FormatCount(GetKeyCount(env.Id, SecretBundleKind.Base))})")
+								@EnvLabel(env.Name)
 							</MudChip>
 							<MudTooltip Text="우선순위가 가장 높은 오버라이드 레이어를 편집합니다.">
 								<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
 									OnClick="@(() => NavigationManager.NavigateTo($"{editHref}/overwrite"))">
-									overwrite(@FormatCount(GetKeyCount(env.Id, SecretBundleKind.Overwrite)))
+									overwrite
 								</MudChip>
 							</MudTooltip>
 						</MudStack>
@@ -95,7 +92,6 @@ else
 
 @code {
 	private List<Database.Models.App>? _apps;
-	private readonly Dictionary<(Guid EnvId, SecretBundleKind Kind), Int32> _keyCounts = [];
 	private MudTable<Database.Models.App>? _table;
 	private string _searchText = "";
 
@@ -111,67 +107,9 @@ else
 		return state.User.FindFirstValue(ClaimTypes.NameIdentifier);
 	}
 
-	private CancellationTokenSource? _loadCountsCts;
-
 	protected override async Task OnInitializedAsync()
 	{
 		_apps = await AppRegistrationService.ListActiveAsync();
-	}
-
-	protected override void OnAfterRender(bool firstRender)
-	{
-		// 키 개수는 표를 먼저 그린 뒤 백그라운드로 채운다(S3 호출이 App×Env×2번씩 쌓임).
-		if (firstRender && _apps is { Count: > 0 })
-		{
-			_loadCountsCts = new CancellationTokenSource();
-			_ = LoadKeyCountsAsync(_apps, _loadCountsCts.Token);
-		}
-	}
-
-	private async Task LoadKeyCountsAsync(List<Database.Models.App> apps, CancellationToken cancellationToken)
-	{
-		foreach (var app in apps)
-		{
-			foreach (var env in app.Envs)
-			{
-				if (cancellationToken.IsCancellationRequested)
-				{
-					return;
-				}
-
-				// 한 App/Env 실패로 이 fire-and-forget 태스크 전체가 죽지 않도록 개별 try.
-				try
-				{
-					var baseCount = await SecretBundleService.GetKeyCountAsync(
-						app, env, SecretBundleKind.Base, cancellationToken);
-					var overwriteCount = await SecretBundleService.GetKeyCountAsync(
-						app, env, SecretBundleKind.Overwrite, cancellationToken);
-					_keyCounts[(env.Id, SecretBundleKind.Base)] = baseCount;
-					_keyCounts[(env.Id, SecretBundleKind.Overwrite)] = overwriteCount;
-				}
-				catch (Exception ex) when (ex is not OperationCanceledException)
-				{
-					Logger.LogWarning(ex, "App {AppId} Env {EnvId} 키 개수 조회에 실패했습니다.", app.Id, env.Id);
-				}
-
-				if (cancellationToken.IsCancellationRequested)
-				{
-					return;
-				}
-				await InvokeAsync(StateHasChanged);
-			}
-		}
-	}
-
-	private Int32? GetKeyCount(Guid envId, SecretBundleKind kind) =>
-		_keyCounts.TryGetValue((envId, kind), out var count) ? count : null;
-
-	private static string FormatCount(Int32? count) => count?.ToString() ?? "…";
-
-	public void Dispose()
-	{
-		_loadCountsCts?.Cancel();
-		_loadCountsCts?.Dispose();
 	}
 
 	private bool FilterFunc(Database.Models.App app) => MatchesSearch(app, _searchText);

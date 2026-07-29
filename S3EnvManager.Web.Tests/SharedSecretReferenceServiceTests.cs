@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
 using S3EnvManager.Sops;
@@ -308,7 +307,7 @@ public class SharedSecretReferenceServiceTests
 
 		public SecretBundleService CreateBundleService() => new(
 			CreateDbContext(), Store, Kms, Kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new MemoryCache(new MemoryCacheOptions()));
+			new PrimaryStorageSettingsStore(CreateDbContext()));
 
 		public SharedSecretService CreateSharedSecretService() => new(
 			CreateDbContext(), new AppSecretKeyCipher(CreateDbContext(), Kms, new DataKeyCache()),

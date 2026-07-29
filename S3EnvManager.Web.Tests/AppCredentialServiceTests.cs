@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
 using S3EnvManager.Sops;
@@ -105,8 +104,7 @@ public class AppCredentialServiceTests
 		public SecretBundleService CreateSecretBundleService() =>
 			new(
 				CreateDbContext(), new FakeSecretObjectStore(), Kms, Kms,
-				new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()),
-				new MemoryCache(new MemoryCacheOptions()));
+				new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()));
 
 		public AppCredentialService CreateCredentialService()
 		{

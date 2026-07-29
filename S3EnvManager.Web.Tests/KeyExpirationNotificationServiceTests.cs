@@ -135,9 +135,7 @@ public class KeyExpirationNotificationServiceTests
 			db, new AppSecretKeyCipher(db, kms, new DataKeyCache()), new AuditLogger(db),
 			new SecretBundleService(
 				db, new FakeSecretObjectStore(), kms, kms, new AuditLogger(db),
-				new PrimaryStorageSettingsStore(db),
-				new Microsoft.Extensions.Caching.Memory.MemoryCache(
-					new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+				new PrimaryStorageSettingsStore(db)));
 		var sharedSecretName = "ext-api-" + Guid.NewGuid().ToString("N")[..8];
 		await sharedSecretService.CreateAsync(
 			sharedSecretName, null, "v1", now.AddDays(3), actorUserId: null);

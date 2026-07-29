@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
 using S3EnvManager.Sops;
@@ -164,58 +163,6 @@ public class SecretBundleServiceTests
 		Assert.Equal("A", realConflict.Key);
 		Assert.Equal("from-a", realConflict.Mine);
 		Assert.Equal("from-b", realConflict.Theirs);
-	}
-
-	[Fact]
-	public async Task GetKeyCountAsync_ReflectsSavedEntryCount_AndZeroWhenNeverSaved()
-	{
-		if (!await IsEnvironmentAvailableAsync())
-		{
-			return;
-		}
-
-		var fixture = await Fixture.CreateAsync();
-		var (app, env) = await fixture.RegisterAppAsync("keycount-" + Guid.NewGuid().ToString("N")[..8]);
-		var service = fixture.CreateService();
-
-		Assert.Equal(0, await service.GetKeyCountAsync(app, env, SecretBundleKind.Overwrite));
-		Assert.Equal(0, await service.GetKeyCountAsync(app, env, SecretBundleKind.Base));
-
-		var values = new Dictionary<string, string> { ["A"] = "1", ["B"] = "2" };
-		var outcome = await service.SaveAsync(env.Id, new Dictionary<string, string>(), null, values);
-		Assert.IsType<SaveSuccess>(outcome);
-
-		Assert.Equal(2, await service.GetKeyCountAsync(app, env, SecretBundleKind.Base));
-		Assert.Equal(0, await service.GetKeyCountAsync(app, env, SecretBundleKind.Overwrite));
-	}
-
-	// GetKeyCountAsync는 10분간 캐싱한다 - SaveAsync가 캐시를 명시적으로 지우지 않으면 저장
-	// 직후에도 stale한 개수가 보일 수 있어, 무효화가 실제로 일어나는지 확인한다.
-	[Fact]
-	public async Task GetKeyCountAsync_ReflectsLatestSave_NotStaleCachedValue()
-	{
-		if (!await IsEnvironmentAvailableAsync())
-		{
-			return;
-		}
-
-		var fixture = await Fixture.CreateAsync();
-		var (app, env) = await fixture.RegisterAppAsync("keycache-" + Guid.NewGuid().ToString("N")[..8]);
-		var service = fixture.CreateService();
-
-		var firstValues = new Dictionary<string, string> { ["A"] = "1", ["B"] = "2" };
-		var firstOutcome = await service.SaveAsync(env.Id, new Dictionary<string, string>(), null, firstValues);
-		Assert.IsType<SaveSuccess>(firstOutcome);
-
-		Assert.Equal(2, await service.GetKeyCountAsync(app, env, SecretBundleKind.Base));
-
-		var session = await service.LoadForEditAsync(env.Id);
-		var secondValues = new Dictionary<string, string>
-			{ ["A"] = "1", ["B"] = "2", ["C"] = "3", ["D"] = "4", ["E"] = "5" };
-		var secondOutcome = await service.SaveAsync(env.Id, session.Values, session.BaseETag, secondValues);
-		Assert.IsType<SaveSuccess>(secondOutcome);
-
-		Assert.Equal(5, await service.GetKeyCountAsync(app, env, SecretBundleKind.Base));
 	}
 
 	[Fact]
@@ -491,8 +438,7 @@ public class SecretBundleServiceTests
 				store = wrapStore(store);
 			}
 			return new SecretBundleService(
-				db, store, Kms, Kms, new AuditLogger(db), new PrimaryStorageSettingsStore(db),
-				new MemoryCache(new MemoryCacheOptions()));
+				db, store, Kms, Kms, new AuditLogger(db), new PrimaryStorageSettingsStore(db));
 		}
 
 		private static async Task<string> GetOrCreateActiveCmkAsync(ApplicationDbContext db, CmkRole role)

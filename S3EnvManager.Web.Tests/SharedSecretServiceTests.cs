@@ -215,9 +215,7 @@ public class SharedSecretServiceTests
 			new AuditLogger(CreateDbContext()),
 			new SecretBundleService(
 				CreateDbContext(), new FakeSecretObjectStore(), kms, kms, new AuditLogger(CreateDbContext()),
-				new PrimaryStorageSettingsStore(CreateDbContext()),
-				new Microsoft.Extensions.Caching.Memory.MemoryCache(
-					new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+				new PrimaryStorageSettingsStore(CreateDbContext())));
 
 	private static async Task<(App App, Env Env)> RegisterAppAsync()
 	{

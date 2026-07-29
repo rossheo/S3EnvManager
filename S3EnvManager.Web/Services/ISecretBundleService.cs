@@ -40,10 +40,4 @@ public interface ISecretBundleService
 	Task<IReadOnlyDictionary<string, string>> LoadVersionAsync(
 		Guid envId, string versionId, SecretBundleKind kind = SecretBundleKind.Base,
 		CancellationToken cancellationToken = default);
-
-	// 복호화하지 않고 항목 수만 세므로 CMK가 제거되어 있어도 실패하지 않는다. app/env를 호출자가
-	// 들고 있는 상태로 받아 DB 조회 없이 S3만 호출한다(반복 호출 시 DbContext 동시성 회피).
-	Task<Int32> GetKeyCountAsync(
-		App app, Env env, SecretBundleKind kind = SecretBundleKind.Base,
-		CancellationToken cancellationToken = default);
 }

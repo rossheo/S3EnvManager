@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
 using S3EnvManager.Sops;
@@ -93,7 +92,7 @@ public class AppDeletionAndPurgeTests
 		var store = new FakeSecretObjectStore();
 		var bundleService = new SecretBundleService(
 			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new MemoryCache(new MemoryCacheOptions()));
+			new PrimaryStorageSettingsStore(CreateDbContext()));
 		await bundleService.SaveAsync(
 			devEnv.Id, new Dictionary<string, string>(), null, new Dictionary<string, string> { ["A"] = "1" });
 		await bundleService.SaveAsync(devEnv.Id, new Dictionary<string, string>(), null,

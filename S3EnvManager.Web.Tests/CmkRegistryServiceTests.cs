@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
 using S3EnvManager.Sops;
@@ -68,7 +67,7 @@ public class CmkRegistryServiceTests
 		var store = new FakeSecretObjectStore();
 		var bundleService = new SecretBundleService(
 			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new MemoryCache(new MemoryCacheOptions()));
+			new PrimaryStorageSettingsStore(CreateDbContext()));
 
 		var values = new Dictionary<string, string> { ["FOO"] = "bar-under-cmk-a" };
 		var saveOutcome = await bundleService.SaveAsync(devEnv.Id, new Dictionary<string, string>(), null, values);
@@ -213,7 +212,7 @@ public class CmkRegistryServiceTests
 
 		var bundleService = new SecretBundleService(
 			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new MemoryCache(new MemoryCacheOptions()));
+			new PrimaryStorageSettingsStore(CreateDbContext()));
 
 		// 재래핑 스윕이 base/overwrite 둘 다 커버하는지가 핵심(overwrite를 빠뜨리기 쉽다).
 		var baseValues = new Dictionary<string, string> { ["FOO"] = "base-under-cmk-a" };
@@ -306,7 +305,7 @@ public class CmkRegistryServiceTests
 
 		var bundleService = new SecretBundleService(
 			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new MemoryCache(new MemoryCacheOptions()));
+			new PrimaryStorageSettingsStore(CreateDbContext()));
 		var objectKey = $"{appName}/dev.env";
 
 		var v1 = new Dictionary<string, string> { ["FOO"] = "v1-under-cmk-a" };

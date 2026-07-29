@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
@@ -15,14 +14,9 @@ public sealed class SecretBundleService(
 	IKmsKeyOperations kms,
 	[FromKeyedServices(CmkRole.App)] IKmsKeyOperations appKms,
 	IAuditLogger auditLogger,
-	IPrimaryStorageSettingsStore primaryStorageSettingsStore,
-	IMemoryCache cache)
+	IPrimaryStorageSettingsStore primaryStorageSettingsStore)
 	: ISecretBundleService
 {
-	private static readonly TimeSpan KeyCountCacheDuration = TimeSpan.FromMinutes(10);
-
-	private static string KeyCountCacheKey(string key) => $"secret-key-count:{key}";
-
 	public async Task<SecretEditSession> LoadForEditAsync(
 		Guid envId, SecretBundleKind kind = SecretBundleKind.Base, CancellationToken cancellationToken = default)
 	{
@@ -175,8 +169,6 @@ public sealed class SecretBundleService(
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
-			cache.Remove(KeyCountCacheKey(key));
-
 			return new SaveSuccess(putResult.ETag) as SaveOutcome;
 		}).ConfigureAwait(false);
 	}
@@ -205,25 +197,6 @@ public sealed class SecretBundleService(
 		var content = await store.GetVersionContentAsync(bucket, key, versionId, cancellationToken)
 			.ConfigureAwait(false);
 		return await SopsEnvelopeCodec.DecryptAsAdminAsync(content, kms, cancellationToken).ConfigureAwait(false);
-	}
-
-	public async Task<Int32> GetKeyCountAsync(
-		App app, Env env, SecretBundleKind kind = SecretBundleKind.Base,
-		CancellationToken cancellationToken = default)
-	{
-		var key = SecretObjectKeys.Locate(app, env, kind);
-		var cacheKey = KeyCountCacheKey(key);
-		if (cache.TryGetValue(cacheKey, out Int32 cachedCount))
-		{
-			return cachedCount;
-		}
-
-		var bucket = await GetPrimaryBucketAsync(cancellationToken).ConfigureAwait(false);
-		var stored = await store.GetCurrentAsync(bucket, key, cancellationToken).ConfigureAwait(false);
-		var count = stored is null ? 0 : SopsDotEnvDocument.Parse(stored.Content).Entries.Count;
-		// App x Env 개수만큼 반복 호출되므로 짧게 캐싱한다 - SaveAsync가 저장 시 명시적으로 무효화한다.
-		cache.Set(cacheKey, count, KeyCountCacheDuration);
-		return count;
 	}
 
 	private async Task<IReadOnlyDictionary<string, DateTimeOffset>> LoadExpirationsAsync(

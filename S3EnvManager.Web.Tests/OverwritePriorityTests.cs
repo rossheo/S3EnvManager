@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
 using S3EnvManager.Sops;
@@ -42,8 +41,7 @@ public class OverwritePriorityTests
 
 		var bundleService = new SecretBundleService(
 			CreateDbContext(), new FakeSecretObjectStore(), kms, kms,
-			new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()),
-			new MemoryCache(new MemoryCacheOptions()));
+			new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()));
 
 		var baseOutcome = await bundleService.SaveAsync(
 			devEnv.Id, new Dictionary<string, string>(), null,

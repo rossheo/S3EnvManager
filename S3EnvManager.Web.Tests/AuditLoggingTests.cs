@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
 using S3EnvManager.Sops;
@@ -41,8 +40,7 @@ public class AuditLoggingTests
 
 		var bundleService = new SecretBundleService(
 			CreateDbContext(), new FakeSecretObjectStore(), kms, kms,
-			new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()),
-			new MemoryCache(new MemoryCacheOptions()));
+			new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()));
 		var actorUserId = "user-" + Guid.NewGuid().ToString("N")[..8];
 
 		const string secretValue = "super-secret-value-should-never-appear-in-log";
