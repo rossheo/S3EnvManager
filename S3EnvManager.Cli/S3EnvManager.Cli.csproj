@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>S3EnvManager.Cli</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- 부차 경로(사람이 터미널에서 빠르게 쓰는 용도)로만 유지한다. v1의 1차 소비 경로는
+         deploy-all.ps1이 로컬 빌드 산출물을 직접 호출하는 것이라 NuGet 게시에 의존하지
+         않는다 - PLAN-cli.md의 "패키징/배포" 절 참고. -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>s3envmanager</ToolCommandName>
+    <PackageId>S3EnvManager.Cli</PackageId>
+    <Description>S3EnvManager가 관리하는 시크릿 번들을 읽기 전용으로 조회하는 CLI(get/get-all). deploy.ps1 같은 배포 스크립트가 실행 시점에 값을 조회할 때 쓴다. Admin 복호화나 번들 쓰기는 지원하지 않는다.</Description>
+    <RepositoryUrl>https://github.com/rossheo/S3EnvManager.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/rossheo/S3EnvManager</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageTags>s3envmanager;cli;secrets;s3</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="AWSSDK.KeyManagementService" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\S3EnvManager.Sops\S3EnvManager.Sops.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

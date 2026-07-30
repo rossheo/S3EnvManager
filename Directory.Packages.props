@@ -5,7 +5,13 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- Aspire.Hosting.AWS 13.5.0(현재 최신)이 물고 오는 Amazon.CDK.Lib 2.236.0에는
+		     GHSA-464c-974j-9xm6(CodeBuild S3 로그 encrypted 설정이 반대로 적용되는
+		     낮음 심각도 취약점, 2.253.0에서 수정)이 있다. AppHost는 aws-codebuild 구성을
+		     쓰지 않아 실제로 영향받는 경로는 없지만, transitive 버전만 올리면 해결되므로
+		     AppHost.csproj에 명시적 PackageReference로 override한다. -->
 		<PackageVersion Include="Aspire.Hosting.AWS" Version="13.5.0" />
+		<PackageVersion Include="Amazon.CDK.Lib" Version="2.253.0" />
 		<PackageVersion Include="Aspire.Hosting.Docker" Version="13.4.6" />
 		<PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
 		<PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.4.6" />

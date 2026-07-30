@@ -6,6 +6,7 @@
     <File Path="version.json" />
   </Folder>
   <Project Path="S3EnvManager.AppHost/S3EnvManager.AppHost.csproj" />
+  <Project Path="S3EnvManager.Cli/S3EnvManager.Cli.csproj" />
   <Project Path="S3EnvManager.Configuration.SampleApp/S3EnvManager.Configuration.SampleApp.csproj" />
   <Project Path="S3EnvManager.Configuration/S3EnvManager.Configuration.csproj" />
   <Project Path="S3EnvManager.Database/S3EnvManager.Database.csproj" />

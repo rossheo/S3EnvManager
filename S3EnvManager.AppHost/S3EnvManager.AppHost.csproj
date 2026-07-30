@@ -13,6 +13,9 @@
     <PackageReference Include="Aspire.Hosting.AWS" />
     <PackageReference Include="Aspire.Hosting.Docker" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <!-- Aspire.Hosting.AWS가 물고 오는 Amazon.CDK.Lib의 취약 버전(GHSA-464c-974j-9xm6)을
+         override하기 위한 명시적 참조 - Directory.Packages.props 참고. -->
+    <PackageReference Include="Amazon.CDK.Lib" />
   </ItemGroup>
 
   <ItemGroup>
