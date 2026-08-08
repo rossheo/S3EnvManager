@@ -216,6 +216,43 @@ public class SecretBundleServiceTests
 		Assert.Equal(valuesA, await service.LoadVersionAsync(env.Id, oldVersion.VersionId));
 	}
 
+	// 히스토리 화면은 버전마다 HEAD를 한 번 더 부르고 전 행을 한꺼번에 렌더링하므로 상한이 있다.
+	// 상한을 넘겨 저장해도 최신 것만 상한만큼 돌아와야 한다(오래된 쪽이 잘린다).
+	[Fact]
+	public async Task ListHistoryAsync_CapsToNewestVersions_WhenHistoryGrowsBeyondLimit()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (app, env) = await fixture.RegisterAppAsync("histcap-" + Guid.NewGuid().ToString("N")[..8]);
+		var service = fixture.CreateService();
+
+		const Int32 saveCount = 55;
+		string? eTag = null;
+		var previous = new Dictionary<string, string>();
+		for (var i = 0; i < saveCount; i++)
+		{
+			var values = new Dictionary<string, string> { ["A"] = i.ToString() };
+			var outcome = await service.SaveAsync(env.Id, previous, eTag, values);
+			var success = Assert.IsType<SaveSuccess>(outcome);
+			eTag = success.NewETag;
+			previous = values;
+		}
+
+		var history = await service.ListHistoryAsync(env.Id);
+		Assert.True(history.Count < saveCount, $"상한이 적용되지 않았습니다(전체 {saveCount}건이 그대로 반환됨).");
+
+		// 잘린 쪽은 오래된 버전이어야 한다 - 최신 버전은 반드시 남는다.
+		Assert.Contains(history, v => v.IsLatest);
+		var newest = history.MaxBy(v => v.LastModified)!;
+		Assert.Equal(
+			new Dictionary<string, string> { ["A"] = (saveCount - 1).ToString() },
+			await service.LoadVersionAsync(env.Id, newest.VersionId));
+	}
+
 	// ListVersions 응답에는 커스텀 메타데이터가 없어 actorEmail은 버전별 조회로 다시 읽어와야
 	// 한다 - 그 왕복이 맞물리는지 확인한다.
 	[Fact]

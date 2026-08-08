@@ -39,8 +39,9 @@ public sealed class TrailerTamperingSecretObjectStore(ISecretObjectStore inner, 
 		inner.DeleteAsync(bucket, key, cancellationToken);
 
 	public Task<List<SecretObjectVersion>> ListVersionsAsync(
-		string bucket, string key, bool includeActorEmail = false, CancellationToken cancellationToken = default) =>
-		inner.ListVersionsAsync(bucket, key, includeActorEmail, cancellationToken);
+		string bucket, string key, bool includeActorEmail = false, Int32? maxVersions = null,
+		CancellationToken cancellationToken = default) =>
+		inner.ListVersionsAsync(bucket, key, includeActorEmail, maxVersions, cancellationToken);
 
 	public Task<string> GetVersionContentAsync(
 		string bucket, string key, string versionId, CancellationToken cancellationToken = default) =>

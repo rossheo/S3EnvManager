@@ -83,13 +83,20 @@ public sealed class FakeSecretObjectStore : ISecretObjectStore
 		return Task.CompletedTask;
 	}
 
+	// 실물 S3는 같은 키의 버전을 최신순으로 돌려주고 상한이 차면 거기서 멈춘다 - 이 fake는
+	// 추가 순서(오래된 것부터)로 들고 있으므로, 상한은 뒤(최신)에서 잘라야 같은 의미가 된다.
 	public Task<List<SecretObjectVersion>> ListVersionsAsync(
-		string bucket, string key, bool includeActorEmail = false, CancellationToken cancellationToken = default)
+		string bucket, string key, bool includeActorEmail = false, Int32? maxVersions = null,
+		CancellationToken cancellationToken = default)
 	{
 		var versions = VersionsFor(bucket, key);
 		var result = versions.Select((v, i) => new SecretObjectVersion(
 			v.VersionId, i == versions.Count - 1, v.LastModified, v.ETag, includeActorEmail ? v.ActorEmail : null))
 			.ToList();
+		if (maxVersions is { } limit && result.Count > limit)
+		{
+			result = result.Skip(result.Count - limit).ToList();
+		}
 		return Task.FromResult(result);
 	}
 

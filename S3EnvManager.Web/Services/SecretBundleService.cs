@@ -17,6 +17,9 @@ public sealed class SecretBundleService(
 	IPrimaryStorageSettingsStore primaryStorageSettingsStore)
 	: ISecretBundleService
 {
+	// 저장 히스토리 화면이 한 번에 가져오는 최신 버전 수 상한.
+	private const Int32 HistoryPageSize = 50;
+
 	public async Task<SecretEditSession> LoadForEditAsync(
 		Guid envId, SecretBundleKind kind = SecretBundleKind.Base, CancellationToken cancellationToken = default)
 	{
@@ -180,8 +183,11 @@ public sealed class SecretBundleService(
 			.SingleAsync(e => e.Id == envId, cancellationToken).ConfigureAwait(false);
 		var (bucket, key) = await ObjectLocationAsync(env, kind, cancellationToken).ConfigureAwait(false);
 
+		// 화면이 전 행을 한 번에 렌더링하고 버전마다 HEAD가 붙으므로 최신 것부터 상한까지만 받는다 -
+		// 되돌리기 없이 열람만 하는 화면이라 오래된 버전을 잘라도 잃는 기능이 없다.
 		var versions = await store.ListVersionsAsync(
-			bucket, key, includeActorEmail: true, cancellationToken: cancellationToken)
+			bucket, key, includeActorEmail: true, maxVersions: HistoryPageSize,
+			cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
 		return versions.OrderByDescending(v => v.LastModified).ToList();
 	}

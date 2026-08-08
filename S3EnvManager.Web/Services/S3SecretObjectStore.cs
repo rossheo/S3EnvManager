@@ -63,30 +63,67 @@ public sealed class S3SecretObjectStore(IAmazonS3ClientProvider s3ClientProvider
 	public Task DeleteAsync(string bucket, string key, CancellationToken cancellationToken = default) =>
 		s3Client.DeleteObjectAsync(bucket, key, cancellationToken);
 
-	public async Task<List<SecretObjectVersion>> ListVersionsAsync(
-		string bucket, string key, bool includeActorEmail = false, CancellationToken cancellationToken = default)
-	{
-		var response = await s3Client.ListVersionsAsync(
-			new ListVersionsRequest { BucketName = bucket, Prefix = key }, cancellationToken)
-			.ConfigureAwait(false);
-		// 매칭 오브젝트가 없으면 S3가 빈 리스트가 아니라 Versions 자체를 null로 돌려준다.
-		var matching = (response.Versions ?? [])
-			.Where(v => v.Key == key && v.IsDeleteMarker != true)
-			.ToList();
+	// 버전별 HEAD를 순차로 돌면 상한(50)에서도 체감 지연이 크다 - S3 클라이언트는 스레드 안전하므로
+	// 제한된 병렬도로 겹쳐 부른다.
+	private const Int32 ActorEmailFetchConcurrency = 8;
 
-		var versions = new List<SecretObjectVersion>(matching.Count);
-		foreach (var v in matching)
+	public async Task<List<SecretObjectVersion>> ListVersionsAsync(
+		string bucket, string key, bool includeActorEmail = false, Int32? maxVersions = null,
+		CancellationToken cancellationToken = default)
+	{
+		// ListVersions는 한 번에 최대 1000개만 돌려준다 - IsTruncated를 따라가지 않으면 그 이상
+		// 쌓인 버전이 조용히 잘린다(CMK 제거가 일부 버전을 놓치면 그 버전은 영영 못 연다).
+		// S3는 같은 키의 버전을 최신순으로 돌려주므로, 상한이 있으면 채우는 즉시 멈출 수 있다.
+		var matching = new List<S3ObjectVersion>();
+		var request = new ListVersionsRequest { BucketName = bucket, Prefix = key };
+		while (true)
 		{
-			// ListVersions 응답에는 커스텀 메타데이터가 없어 버전별 HEAD 요청이 추가로 필요하다.
-			var actorEmail = includeActorEmail
-				? await GetActorEmailAsync(bucket, key, v.VersionId, cancellationToken).ConfigureAwait(false)
-				: null;
-			versions.Add(new SecretObjectVersion(
+			var response = await s3Client.ListVersionsAsync(request, cancellationToken).ConfigureAwait(false);
+			// 매칭 오브젝트가 없으면 S3가 빈 리스트가 아니라 Versions 자체를 null로 돌려준다.
+			matching.AddRange((response.Versions ?? [])
+				.Where(v => v.Key == key && v.IsDeleteMarker != true));
+
+			if (maxVersions is { } limit && matching.Count >= limit)
+			{
+				matching.RemoveRange(limit, matching.Count - limit);
+				break;
+			}
+			if (response.IsTruncated != true)
+			{
+				break;
+			}
+			request.KeyMarker = response.NextKeyMarker;
+			request.VersionIdMarker = response.NextVersionIdMarker;
+		}
+
+		var versions = new SecretObjectVersion[matching.Count];
+		for (var i = 0; i < matching.Count; i++)
+		{
+			var v = matching[i];
+			versions[i] = new SecretObjectVersion(
 				v.VersionId, v.IsLatest ?? false,
 				new DateTimeOffset(DateTime.SpecifyKind(v.LastModified!.Value, DateTimeKind.Utc)),
-				Unquote(v.ETag), actorEmail));
+				Unquote(v.ETag));
 		}
-		return versions;
+
+		if (includeActorEmail)
+		{
+			// ListVersions 응답에는 커스텀 메타데이터가 없어 버전별 HEAD 요청이 추가로 필요하다.
+			await Parallel.ForAsync(0, versions.Length,
+				new ParallelOptions
+				{
+					MaxDegreeOfParallelism = ActorEmailFetchConcurrency,
+					CancellationToken = cancellationToken,
+				},
+				async (i, ct) =>
+				{
+					var actorEmail = await GetActorEmailAsync(bucket, key, versions[i].VersionId, ct)
+						.ConfigureAwait(false);
+					versions[i] = versions[i] with { ActorEmail = actorEmail };
+				}).ConfigureAwait(false);
+		}
+
+		return [.. versions];
 	}
 
 	private async Task<string?> GetActorEmailAsync(
