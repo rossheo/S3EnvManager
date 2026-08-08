@@ -7,6 +7,8 @@
 @using S3EnvManager.Web.Services
 
 @inject IBucketHealthStatusStore BucketHealthStatusStore
+@inject IJSRuntime JsRuntime
+@inject ISnackbar Snackbar
 
 <MudPopoverProvider />
 <MudDialogProvider />
@@ -38,7 +40,13 @@ else
 			<MudTh>마지막 점검</MudTh>
 		</HeaderContent>
 		<RowTemplate>
-			<MudTd DataLabel="버킷">@context.Bucket</MudTd>
+			<MudTd DataLabel="버킷">
+				<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+					<span>@context.Bucket</span>
+					<MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+						OnClick="@(() => CopyBucketAsync(context.Bucket))" title="버킷 이름 복사" />
+				</MudStack>
+			</MudTd>
 			<MudTd DataLabel="버저닝">@StatusIcon(context.VersioningEnabled)</MudTd>
 			<MudTd DataLabel="Public Access Block">@StatusIcon(context.PublicAccessBlocked)</MudTd>
 			<MudTd DataLabel="Object Ownership">@StatusIcon(context.ObjectOwnershipEnforced)</MudTd>
@@ -55,6 +63,12 @@ else
 	protected override void OnInitialized()
 	{
 		_reports = BucketHealthStatusStore.GetAll();
+	}
+
+	private async Task CopyBucketAsync(string bucket)
+	{
+		await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", bucket);
+		Snackbar.Add("버킷 이름을 클립보드에 복사했습니다.", Severity.Success);
 	}
 
 	private static RenderFragment StatusIcon(bool ok) => builder =>

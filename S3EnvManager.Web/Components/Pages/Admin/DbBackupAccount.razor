@@ -37,7 +37,11 @@ else if (_info is { } info)
 	<MudPaper Class="pa-4 mb-4" MaxWidth="600px" Style="width: 100%;">
 		<MudStack Row="true" Justify="Justify.SpaceBetween" Class="py-1">
 			<MudText Typo="Typo.body2">사용자명</MudText>
-			<MudText Typo="Typo.body2" Style="font-family: monospace;">@info.Username</MudText>
+			<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+				<MudText Typo="Typo.body2" Style="font-family: monospace;">@info.Username</MudText>
+				<MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+					OnClick="@(() => CopyUsernameAsync(info.Username))" title="사용자명 복사" />
+			</MudStack>
 		</MudStack>
 		<MudStack Row="true" Justify="Justify.SpaceBetween" Class="py-1">
 			<MudText Typo="Typo.body2">마지막 회전</MudText>
@@ -101,10 +105,17 @@ else
 		_revealedPassword = null;
 	}
 
+	private async Task CopyUsernameAsync(string username)
+	{
+		await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", username);
+		Snackbar.Add("사용자명을 클립보드에 복사했습니다.", Severity.Success);
+	}
+
+	// 복사 버튼이 둘이 됐으므로 무엇을 복사했는지 구분해서 알린다.
 	private async Task CopyAsync()
 	{
 		await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _revealedPassword);
-		Snackbar.Add("클립보드에 복사했습니다.", Severity.Success);
+		Snackbar.Add("비밀번호를 클립보드에 복사했습니다.", Severity.Success);
 	}
 
 	private async Task RevealAsync()
