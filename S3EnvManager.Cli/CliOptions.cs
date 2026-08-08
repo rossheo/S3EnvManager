@@ -128,7 +128,7 @@ public sealed class CliOptions
 		};
 	}
 
-	private static string RequireValue(string[] args, ref int i, string flagName)
+	private static string RequireValue(string[] args, ref Int32 i, string flagName)
 	{
 		if (i + 1 >= args.Length)
 		{

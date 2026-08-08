@@ -27,8 +27,6 @@ trim_trailing_whitespace = true
 
 # Miscellaneous style rules
 file_header_template = unset
-dotnet_style_predefined_type_for_locals_parameters_members = false:suggestion
-dotnet_style_predefined_type_for_member_access = false:suggestion
 
 [*.razor]
 charset = utf-8
