@@ -19,7 +19,12 @@ public sealed class CliOptions
 	public required string AppName { get; init; }
 	public required string EnvSegment { get; init; }
 	public string? Region { get; init; }
-	public string? Key { get; init; }
+
+	/// <summary>get 명령이 요청한 키들. --key를 여러 번 줄 수 있다 - 번들 하나를 받아
+	/// 한 번만 복호화하므로, 키 N개를 get으로 N번 부르는 것보다 KMS Decrypt 호출이
+	/// 1/N로 줄어든다(호출 1회당 base+overwrite 2회를 쓴다). 순서는 준 순서를 보존한다.</summary>
+	public IReadOnlyList<string> Keys { get; init; } = [];
+
 	public bool AllowMissing { get; init; }
 	public bool AllowMissingBundle { get; init; }
 	public OutputFormat Format { get; init; } = OutputFormat.Json;
@@ -51,7 +56,7 @@ public sealed class CliOptions
 		string? appName = null;
 		string? envSegment = null;
 		string? region = null;
-		string? key = null;
+		var keys = new List<string>();
 		var allowMissing = false;
 		var allowMissingBundle = false;
 		var format = OutputFormat.Json;
@@ -73,7 +78,7 @@ public sealed class CliOptions
 					region = RequireValue(args, ref i, "--region");
 					break;
 				case "--key":
-					key = RequireValue(args, ref i, "--key");
+					keys.Add(RequireValue(args, ref i, "--key"));
 					break;
 				case "--allow-missing":
 					allowMissing = true;
@@ -109,9 +114,19 @@ public sealed class CliOptions
 				"--bucket/--app/--env(또는 S3ENVMANAGER_BUCKET/_APP_NAME/_ENV_SEGMENT)를 모두 지정하세요.");
 		}
 
-		if (command == CliCommand.Get && string.IsNullOrWhiteSpace(key))
+		if (command == CliCommand.Get && keys.Count == 0)
 		{
 			throw new CliException(ExitCode.ArgumentError, "get 명령에는 --key가 필요합니다.");
+		}
+		if (command == CliCommand.GetAll && keys.Count > 0)
+		{
+			throw new CliException(ExitCode.ArgumentError, "get-all은 --key를 받지 않습니다 - get을 쓰세요.");
+		}
+
+		var duplicateKey = keys.GroupBy(k => k, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1)?.Key;
+		if (duplicateKey is not null)
+		{
+			throw new CliException(ExitCode.ArgumentError, $"--key가 중복 지정되었습니다: '{duplicateKey}'.");
 		}
 
 		return new CliOptions
@@ -121,7 +136,7 @@ public sealed class CliOptions
 			AppName = appName,
 			EnvSegment = envSegment,
 			Region = region,
-			Key = key,
+			Keys = keys,
 			AllowMissing = allowMissing,
 			AllowMissingBundle = allowMissingBundle,
 			Format = format,

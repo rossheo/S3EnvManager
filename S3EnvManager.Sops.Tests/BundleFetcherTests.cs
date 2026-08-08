@@ -202,6 +202,54 @@ public class BundleFetcherTests
 				System.Net.HttpStatusCode.Forbidden);
 	}
 
+	// K1의 근거: 조회 1회당 KMS Decrypt는 번들 수(base+overwrite)만큼이고 키 개수와 무관하다.
+	// 그래서 키 N개를 get으로 N번 부르면 2N회, --key를 여러 번 줘서 한 번 부르면 2회가 된다.
+	[Fact]
+	public async Task FetchAsync_UsesTwoKmsDecrypts_RegardlessOfKeyCount()
+	{
+		var kms = new FakeKmsKeyOperations();
+		var store = new FakeBundleObjectStore();
+		var many = Enumerable.Range(0, 20).ToDictionary(i => $"KEY_{i}", i => $"value-{i}");
+		store.SetObject(BaseKey, await EncryptAsync(kms, many));
+		store.SetObject(OverwriteKey, await EncryptAsync(kms, new Dictionary<string, string> { ["KEY_0"] = "ovr" }));
+
+		var counting = new CountingKmsKeyOperations(kms);
+		var result = await new BundleFetcher(store, counting)
+			.FetchAsync(Bucket, AppName, EnvSegment, allowMissingBundle: false, CancellationToken.None);
+
+		Assert.Equal(20, result.Values.Count);
+		Assert.Equal(2, counting.DecryptCalls);
+
+		// 키를 몇 개 뽑든 추가 호출은 없다 - 선택은 이미 받은 평문에서 일어난다.
+		var (selected, missing) = KeySelection.Select(result.Values, ["KEY_0", "KEY_7", "KEY_19"]);
+		Assert.Empty(missing);
+		Assert.Equal(3, selected.Count);
+		Assert.Equal(2, counting.DecryptCalls);
+	}
+
+	private sealed class CountingKmsKeyOperations(IKmsKeyOperations inner) : IKmsKeyOperations
+	{
+		public Int32 DecryptCalls { get; private set; }
+
+		public Task<(byte[] PlaintextKey, byte[] CiphertextBlob)> GenerateDataKeyAsync(
+			string cmkArn, IReadOnlyDictionary<string, string> encryptionContext,
+			CancellationToken cancellationToken = default) =>
+			inner.GenerateDataKeyAsync(cmkArn, encryptionContext, cancellationToken);
+
+		public Task<byte[]> EncryptAsync(
+			string cmkArn, byte[] plaintextKey, IReadOnlyDictionary<string, string> encryptionContext,
+			CancellationToken cancellationToken = default) =>
+			inner.EncryptAsync(cmkArn, plaintextKey, encryptionContext, cancellationToken);
+
+		public Task<byte[]> DecryptAsync(
+			string cmkArn, byte[] ciphertextBlob, IReadOnlyDictionary<string, string> encryptionContext,
+			CancellationToken cancellationToken = default)
+		{
+			DecryptCalls++;
+			return inner.DecryptAsync(cmkArn, ciphertextBlob, encryptionContext, cancellationToken);
+		}
+	}
+
 	private static string Tamper(string fileContent)
 	{
 		var lines = fileContent.Split('\n');

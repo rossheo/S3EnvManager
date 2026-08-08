@@ -71,11 +71,20 @@ Aspire 시크릿 파라미터)에서 관리하고, 만료 전 자동으로 재�
 않는다 - 편집은 항상 Web UI(감사 로그가 남는 경로)에서만 한다.
 
 ```
-s3envmanager get     --key <KEY> [--allow-missing] [--allow-missing-bundle]
+s3envmanager get     --key <KEY> [--key <KEY> ...] [--format json|dotenv]
+                     [--allow-missing] [--allow-missing-bundle]
 s3envmanager get-all [--format json|dotenv] [--allow-missing-bundle]
 s3envmanager --help | -h
 s3envmanager --version | -v
 ```
+
+> **KMS 호출을 아끼려면 키마다 `get`을 부르지 말 것.** 호출 1회는 키 개수와 무관하게
+> 번들 전체를 받아 KMS Decrypt를 2회(base+overwrite) 쓴다. 키 20개를 하나씩 받으면
+> 40회, `--key`를 여러 번 주거나 `get-all`을 한 번 부르면 2회다 — free tier가 월 2만
+> 요청이라 이 차이가 그대로 한도가 된다.
+>
+> `--key`가 하나면 값만 그대로 출력하고(기존 동작), 둘 이상이면 `--format`(기본 `json`)
+> 구조화 출력이 된다.
 
 `--bucket`/`--app`/`--env`/`--region`은 인자 또는 환경변수(`S3ENVMANAGER_BUCKET`/
 `S3ENVMANAGER_APP_NAME`/`S3ENVMANAGER_ENV_SEGMENT`/`AWS_REGION`)로 지정한다.

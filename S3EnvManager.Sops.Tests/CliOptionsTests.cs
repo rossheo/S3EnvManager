@@ -62,9 +62,35 @@ public class CliOptionsTests
 		Assert.Equal("b", options.Bucket);
 		Assert.Equal("a", options.AppName);
 		Assert.Equal("e", options.EnvSegment);
-		Assert.Equal("FOO", options.Key);
+		Assert.Equal("FOO", Assert.Single(options.Keys));
 		Assert.True(options.AllowMissing);
 		Assert.False(options.AllowMissingBundle);
+	}
+
+	[Fact]
+	public void Parse_Get_WithRepeatedKey_CollectsAllInOrder()
+	{
+		var options = CliOptions.Parse(["get", .. CommonArgs, "--key", "FOO", "--key", "BAR", "--key", "BAZ"]);
+
+		Assert.Equal(["FOO", "BAR", "BAZ"], options.Keys);
+	}
+
+	[Fact]
+	public void Parse_Get_WithDuplicateKey_ThrowsArgumentError()
+	{
+		var ex = Assert.Throws<CliException>(
+			() => CliOptions.Parse(["get", .. CommonArgs, "--key", "FOO", "--key", "FOO"]));
+
+		Assert.Equal(ExitCode.ArgumentError, ex.ExitCode);
+	}
+
+	[Fact]
+	public void Parse_GetAll_WithKey_ThrowsArgumentError()
+	{
+		var ex = Assert.Throws<CliException>(
+			() => CliOptions.Parse(["get-all", .. CommonArgs, "--key", "FOO"]));
+
+		Assert.Equal(ExitCode.ArgumentError, ex.ExitCode);
 	}
 
 	[Fact]
