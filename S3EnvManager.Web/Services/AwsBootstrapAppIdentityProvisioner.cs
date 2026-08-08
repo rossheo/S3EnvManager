@@ -106,7 +106,8 @@ public sealed class AwsBootstrapAppIdentityProvisioner(
 	{
 		var storedAppCredential = await credentialStore.GetAsync(CmkRole.App, cancellationToken)
 			.ConfigureAwait(false);
-		if (storedAppCredential is null)
+		// 못 읽는 경우도 탐지 불가로 취급한다 - 이 경로는 이름을 추정할 뿐이라 파괴적이지 않다.
+		if (storedAppCredential.Status != BootstrapCredentialStatus.Available)
 		{
 			return null;
 		}
@@ -115,7 +116,7 @@ public sealed class AwsBootstrapAppIdentityProvisioner(
 		{
 			var awsOptions = configuration.GetAWSOptions();
 			awsOptions.Credentials = new BasicAWSCredentials(
-				storedAppCredential.Value.AccessKeyId, storedAppCredential.Value.SecretAccessKey);
+				storedAppCredential.AccessKeyId!, storedAppCredential.SecretAccessKey!);
 			using var sts = awsOptions.CreateServiceClient<IAmazonSecurityTokenService>();
 			var identity = await sts.GetCallerIdentityAsync(new GetCallerIdentityRequest(), cancellationToken)
 				.ConfigureAwait(false);

@@ -11,7 +11,8 @@ public sealed class DataKeyRotationBackgroundService(
 {
 	protected override TimeSpan Interval => TimeSpan.FromHours(1);
 
-	protected override Task ExecuteCycleAsync(IServiceProvider services, CancellationToken cancellationToken) =>
+	protected override Task ExecuteCycleAsync(
+		IServiceProvider services, CancellationToken cancellationToken) =>
 		DataKeyRotationService.RotateIfDueAsync(
 			services.GetRequiredService<ApplicationDbContext>(),
 			services.GetRequiredService<IKmsKeyOperations>(),

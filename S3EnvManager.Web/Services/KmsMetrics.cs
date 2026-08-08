@@ -31,17 +31,22 @@ public sealed class KmsMetrics
 			description: "번들 저장 시 감싼 데이터 키 재사용 결과(hit이면 그 저장은 KMS를 0회 쓴다).");
 	}
 
-	public void RecordGenerateDataKey() => _calls.Add(1, new KeyValuePair<string, object?>("operation", "generate_data_key"));
+	public void RecordGenerateDataKey() =>
+		_calls.Add(1, new KeyValuePair<string, object?>("operation", "generate_data_key"));
 
 	public void RecordEncrypt() => _calls.Add(1, new KeyValuePair<string, object?>("operation", "encrypt"));
 
 	public void RecordDecrypt() => _calls.Add(1, new KeyValuePair<string, object?>("operation", "decrypt"));
 
-	public void RecordDecryptCacheHit() => _decryptCache.Add(1, new KeyValuePair<string, object?>("result", "hit"));
+	public void RecordDecryptCacheHit() =>
+		_decryptCache.Add(1, new KeyValuePair<string, object?>("result", "hit"));
 
-	public void RecordDecryptCacheMiss() => _decryptCache.Add(1, new KeyValuePair<string, object?>("result", "miss"));
+	public void RecordDecryptCacheMiss() =>
+		_decryptCache.Add(1, new KeyValuePair<string, object?>("result", "miss"));
 
-	public void RecordDataKeyReuseHit() => _dataKeyReuse.Add(1, new KeyValuePair<string, object?>("result", "hit"));
+	public void RecordDataKeyReuseHit() =>
+		_dataKeyReuse.Add(1, new KeyValuePair<string, object?>("result", "hit"));
 
-	public void RecordDataKeyReuseMiss() => _dataKeyReuse.Add(1, new KeyValuePair<string, object?>("result", "miss"));
+	public void RecordDataKeyReuseMiss() =>
+		_dataKeyReuse.Add(1, new KeyValuePair<string, object?>("result", "miss"));
 }

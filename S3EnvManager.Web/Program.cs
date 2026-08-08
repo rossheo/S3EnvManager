@@ -210,15 +210,26 @@ using (var scope = app.Services.CreateScope())
 	var adminCredentialOverride = scope.ServiceProvider.GetRequiredService<IRuntimeAwsCredentialsOverride>();
 	var appCredentialOverride = scope.ServiceProvider
 		.GetRequiredKeyedService<IRuntimeAwsCredentialsOverride>(CmkRole.App);
+	// Unreadable이면 오버라이드를 세우지 않는다 - 그 경우 AWS SDK 기본 자격증명 체인으로
+	// 폴백하므로, 의도치 않은 자격증명으로 도는 상태임을 로그로 남긴다(스토어도 이미 에러를 남긴다).
 	var storedAdminCredential = await credentialStore.GetAsync(CmkRole.Admin);
-	if (storedAdminCredential is { } admin)
+	if (storedAdminCredential.Status == BootstrapCredentialStatus.Available)
 	{
-		adminCredentialOverride.Set(admin.AccessKeyId, admin.SecretAccessKey);
+		adminCredentialOverride.Set(
+			storedAdminCredential.AccessKeyId!, storedAdminCredential.SecretAccessKey!);
 	}
-	var storedAppCredential = await credentialStore.GetAsync(CmkRole.App);
-	if (storedAppCredential is { } appCred)
+	else if (storedAdminCredential.Status == BootstrapCredentialStatus.Unreadable)
 	{
-		appCredentialOverride.Set(appCred.AccessKeyId, appCred.SecretAccessKey);
+		app.Logger.LogWarning(
+			"admin 부트스트랩 자격증명을 쓸 수 없어 AWS SDK 기본 자격증명 체인으로 동작합니다 - " +
+			"의도한 자격증명이 아닐 수 있습니다.");
+	}
+
+	var storedAppCredential = await credentialStore.GetAsync(CmkRole.App);
+	if (storedAppCredential.Status == BootstrapCredentialStatus.Available)
+	{
+		appCredentialOverride.Set(
+			storedAppCredential.AccessKeyId!, storedAppCredential.SecretAccessKey!);
 	}
 
 	// 주 저장소 엔드포인트도 같은 시점에 적용한다.

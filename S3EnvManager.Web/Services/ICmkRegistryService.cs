@@ -24,7 +24,8 @@ public interface ICmkRegistryService
 
 	// 제거를 누르기 전에 KMS 호출이 몇 번 나갈지 보여주기 위한 상한 견적. free tier(월 2만
 	// 요청)를 클릭 한 번으로 태울 수 있는 유일한 경로라 사전에 보여야 한다.
-	Task<CmkRemovalEstimate> EstimateRemovalCostAsync(Guid cmkId, CancellationToken cancellationToken = default);
+	Task<CmkRemovalEstimate> EstimateRemovalCostAsync(
+		Guid cmkId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>CMK 제거의 KMS 호출 상한. 실제로는 이 CMK로 감싸지 않은 번들은 건너뛰므로 더 적게

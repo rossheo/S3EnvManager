@@ -21,13 +21,46 @@ public interface IReusableDataKeyCache
 	void Set(string appName, string adminCmkArn, string appCmkArn, SopsWrappedDataKey wrapped);
 }
 
-public sealed class ReusableDataKeyCache(TimeProvider timeProvider, KmsMetrics? metrics = null)
-	: IReusableDataKeyCache
+public sealed class ReusableDataKeyCache : IReusableDataKeyCache, IDisposable
 {
+	private readonly TimeProvider _timeProvider;
+	private readonly KmsMetrics? _metrics;
+	private readonly ITimer _sweeper;
+
+	public ReusableDataKeyCache(TimeProvider timeProvider, KmsMetrics? metrics = null)
+	{
+		_timeProvider = timeProvider;
+		_metrics = metrics;
+
+		// 만료를 TryGet에서만 확인하면, 한 번 저장하고 더 이상 저장하지 않는 App의 평문 데이터
+		// 키가 프로세스가 끝날 때까지 메모리에 남는다 - "최대 10분"이라는 약속이 지켜지지 않는다.
+		// 조회가 없어도 실제로 지우려면 주기적으로 쓸어내야 한다.
+		_sweeper = timeProvider.CreateTimer(_ => Sweep(), state: null, SweepInterval, SweepInterval);
+	}
+
+	private static readonly TimeSpan SweepInterval = TimeSpan.FromMinutes(1);
+
+	public void Dispose() => _sweeper.Dispose();
+
+	private void Sweep()
+	{
+		var now = _timeProvider.GetUtcNow();
+		foreach (var (key, entry) in _entries)
+		{
+			if (now - entry.CreatedAt >= MaxAge)
+			{
+				_entries.TryRemove(key, out _);
+			}
+		}
+	}
+
 	// 창이 길수록 절감이 크고 유출 시 노출 범위도 크다. 편집이 몰리는 구간(연속 저장)만
 	// 흡수하는 것이 목적이라 짧게 잡는다.
 	public static readonly TimeSpan MaxAge = TimeSpan.FromMinutes(10);
-	public const Int32 MaxUses = 50;
+
+	// "재사용" 횟수의 상한이다 - 키를 만든 저장 1회가 앞에 있으므로, 한 데이터 키가 보호하는
+	// 번들 수는 최대 MaxReuses + 1이다.
+	public const Int32 MaxReuses = 50;
 
 	private sealed class Entry(SopsWrappedDataKey wrapped, DateTimeOffset createdAt)
 	{
@@ -42,24 +75,24 @@ public sealed class ReusableDataKeyCache(TimeProvider timeProvider, KmsMetrics? 
 	{
 		var key = BuildKey(appName, adminCmkArn, appCmkArn);
 		if (_entries.TryGetValue(key, out var entry) &&
-			timeProvider.GetUtcNow() - entry.CreatedAt < MaxAge &&
-			Interlocked.Increment(ref entry.Uses) <= MaxUses)
+			_timeProvider.GetUtcNow() - entry.CreatedAt < MaxAge &&
+			Interlocked.Increment(ref entry.Uses) <= MaxReuses)
 		{
-			metrics?.RecordDataKeyReuseHit();
+			_metrics?.RecordDataKeyReuseHit();
 			wrapped = entry.Wrapped;
 			return true;
 		}
 
 		// 만료됐거나 사용 한도를 넘겼으면 버린다 - 다음 저장이 새 키를 만들어 다시 채운다.
 		_entries.TryRemove(key, out _);
-		metrics?.RecordDataKeyReuseMiss();
+		_metrics?.RecordDataKeyReuseMiss();
 		wrapped = null!;
 		return false;
 	}
 
 	public void Set(string appName, string adminCmkArn, string appCmkArn, SopsWrappedDataKey wrapped) =>
 		_entries[BuildKey(appName, adminCmkArn, appCmkArn)] =
-			new Entry(wrapped, timeProvider.GetUtcNow());
+			new Entry(wrapped, _timeProvider.GetUtcNow());
 
 	// appName에 구분자가 섞여도 다른 조합과 충돌하지 않도록 길이를 함께 넣는다.
 	private static string BuildKey(string appName, string adminCmkArn, string appCmkArn) =>

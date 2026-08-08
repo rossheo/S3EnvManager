@@ -10,7 +10,8 @@ public sealed class KeyExpirationNotificationBackgroundService(
 {
 	protected override TimeSpan Interval => TimeSpan.FromHours(24);
 
-	protected override Task ExecuteCycleAsync(IServiceProvider services, CancellationToken cancellationToken) =>
+	protected override Task ExecuteCycleAsync(
+		IServiceProvider services, CancellationToken cancellationToken) =>
 		KeyExpirationNotificationService.CheckAndNotifyAsync(
 			services.GetRequiredService<ApplicationDbContext>(),
 			services.GetRequiredService<IDiscordNotifier>(),

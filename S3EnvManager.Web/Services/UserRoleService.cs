@@ -21,7 +21,8 @@ public sealed class UserRoleService(UserManager<ApplicationUser> userManager, IA
 	}
 
 	public async Task SetRoleAsync(
-		string userId, string roleName, string? actorUserId = null, CancellationToken cancellationToken = default)
+		string userId, string roleName, string? actorUserId = null,
+		CancellationToken cancellationToken = default)
 	{
 		EnsureNotSelf(userId, actorUserId, "자기 자신의 역할은 변경할 수 없습니다.");
 
@@ -29,8 +30,11 @@ public sealed class UserRoleService(UserManager<ApplicationUser> userManager, IA
 			?? throw new InvalidOperationException("사용자를 찾을 수 없습니다.");
 
 		var currentRoles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-		// remove/add 이후에는 이전 역할을 알 수 없으므로 지금 잡아둔다.
-		var previousRole = currentRoles.FirstOrDefault();
+		// remove/add 이후에는 이전 역할을 알 수 없으므로 지금 잡아둔다. 하나만 갖는 것이 이 서비스의
+		// 규약이지만 실제로 그렇다고 가정하지 않는다 - Account/Register.razor가 UserManager를 직접
+		// 써서 역할을 부여하므로 배타성이 깨진 상태가 들어올 수 있고, 그때 FirstOrDefault()로 하나만
+		// 집으면 실제 권한 변경이 감사 로그 없이 지나간다.
+		var previousRoles = currentRoles.OrderBy(r => r, StringComparer.Ordinal).ToList();
 		var rolesToRemove = currentRoles.Where(r => r != roleName).ToList();
 		if (rolesToRemove.Count > 0)
 		{
@@ -52,11 +56,13 @@ public sealed class UserRoleService(UserManager<ApplicationUser> userManager, IA
 		}
 
 		// remove/add는 하나의 트랜잭션이 아니므로 "바꾸려던 의도"가 아니라 "실제로 도달한 상태"를
-		// 남긴다 - 중간에 실패하면 여기까지 오지 않는다.
-		if (previousRole != roleName)
+		// 남긴다 - 중간에 실패하면 여기까지 오지 않는다. 실제로 무언가 바뀐 경우에만 기록한다
+		// (역할을 하나라도 뗐거나 새로 붙였으면 변경이다).
+		var roleAdded = !currentRoles.Contains(roleName);
+		if (rolesToRemove.Count > 0 || roleAdded)
 		{
 			var details = System.Text.Json.JsonSerializer.Serialize(
-				new { targetUserId = userId, from = previousRole, to = roleName }, AuditJsonOptions.Default);
+				new { targetUserId = userId, from = previousRoles, to = roleName }, AuditJsonOptions.Default);
 			await auditLogger.LogAsync(
 				AuditEventTypes.UserRoleChanged, actorUserId, appId: null, details, cancellationToken)
 				.ConfigureAwait(false);
@@ -64,7 +70,8 @@ public sealed class UserRoleService(UserManager<ApplicationUser> userManager, IA
 	}
 
 	public async Task SetLockedOutAsync(
-		string userId, bool lockedOut, string? actorUserId = null, CancellationToken cancellationToken = default)
+		string userId, bool lockedOut, string? actorUserId = null,
+		CancellationToken cancellationToken = default)
 	{
 		EnsureNotSelf(userId, actorUserId, "자기 자신의 계정 잠금 상태는 변경할 수 없습니다.");
 

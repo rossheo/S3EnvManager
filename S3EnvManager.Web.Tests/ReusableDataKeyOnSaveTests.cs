@@ -183,7 +183,8 @@ public class ReusableDataKeyOnSaveTests
 			throw new NotSupportedException();
 
 		public Task SetEnabledAsync(
-			string key, bool enabled, string? actorUserId = null, CancellationToken cancellationToken = default) =>
+			string key, bool enabled, string? actorUserId = null,
+			CancellationToken cancellationToken = default) =>
 			throw new NotSupportedException();
 	}
 }

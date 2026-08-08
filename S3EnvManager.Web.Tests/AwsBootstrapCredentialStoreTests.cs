@@ -36,15 +36,16 @@ public class AwsBootstrapCredentialStoreTests
 		var admin = await store.GetAsync(CmkRole.Admin);
 		var app = await store.GetAsync(CmkRole.App);
 
-		Assert.Equal(("AKIAADMIN", "admin-secret"), admin);
-		Assert.Equal(("AKIAAPP", "app-secret"), app);
+		Assert.Equal(BootstrapCredentialLookup.Available("AKIAADMIN", "admin-secret"), admin);
+		Assert.Equal(BootstrapCredentialLookup.Available("AKIAAPP", "app-secret"), app);
 	}
 
 	[Fact]
-	public async Task Get_WhenNotSaved_ReturnsNull()
+	public async Task Get_WhenNotSaved_ReportsNotConfigured()
 	{
 		var store = CreateStore(CreateDbContext());
-		Assert.Null(await store.GetAsync(CmkRole.Admin));
+		Assert.Equal(
+			BootstrapCredentialStatus.NotConfigured, (await store.GetAsync(CmkRole.Admin)).Status);
 	}
 
 	[Fact]
@@ -56,7 +57,9 @@ public class AwsBootstrapCredentialStoreTests
 		await store.SaveAsync(CmkRole.Admin, "first-id", "first-secret");
 		await store.SaveAsync(CmkRole.Admin, "second-id", "second-secret");
 
-		Assert.Equal(("second-id", "second-secret"), await store.GetAsync(CmkRole.Admin));
+		Assert.Equal(
+			BootstrapCredentialLookup.Available("second-id", "second-secret"),
+			await store.GetAsync(CmkRole.Admin));
 	}
 
 	[Fact]
@@ -68,14 +71,15 @@ public class AwsBootstrapCredentialStoreTests
 		await store.SaveAsync(CmkRole.App, "AKIAAPP", "app-secret");
 		await store.ClearAsync(CmkRole.App);
 
-		Assert.Null(await store.GetAsync(CmkRole.App));
+		Assert.Equal(BootstrapCredentialStatus.NotConfigured, (await store.GetAsync(CmkRole.App)).Status);
 	}
 
 	// 키링이 사라진 상태로 기동하면 Unprotect가 CryptographicException을 던진다. 예전에는 그게
 	// 그대로 Program.cs 기동 경로로 올라가 호스트가 죽어, 자격증명을 다시 등록할 화면조차 뜨지
-	// 않았다 - "미설정"으로 내려앉아야 복구가 가능하다.
+	// 않았다. 그렇다고 "미설정"으로 뭉개면 호출자가 이를 "아직 발급 안 됨"으로 읽어 파괴적으로
+	// 동작하므로, 제3의 상태로 구분해서 알려야 한다.
 	[Fact]
-	public async Task Get_WhenProtectionKeyIsGone_ReturnsNull_InsteadOfThrowing()
+	public async Task Get_WhenProtectionKeyIsGone_ReportsUnreadable_InsteadOfThrowingOrLookingUnset()
 	{
 		var db = CreateDbContext();
 		await CreateStore(db, new EphemeralDataProtectionProvider())
@@ -84,7 +88,10 @@ public class AwsBootstrapCredentialStoreTests
 		// 다른 키링을 가진 provider = 원래 키가 사라진 상황.
 		var storeWithLostKeyRing = CreateStore(db, new EphemeralDataProtectionProvider());
 
-		Assert.Null(await storeWithLostKeyRing.GetAsync(CmkRole.Admin));
+		// "미설정"과 반드시 구분돼야 한다 - 뭉개면 호출자가 Access Key를 새로 발급해버린다.
+		var lookup = await storeWithLostKeyRing.GetAsync(CmkRole.Admin);
+		Assert.Equal(BootstrapCredentialStatus.Unreadable, lookup.Status);
+		Assert.NotEqual(BootstrapCredentialStatus.NotConfigured, lookup.Status);
 
 		// 행 자체는 남겨둔다 - 키링을 되살릴 여지를 없애지 않기 위함이고, 재등록은 SaveAsync가 덮어쓴다.
 		Assert.True(await db.AwsBootstrapCredentials.AnyAsync(c => c.Role == CmkRole.Admin));

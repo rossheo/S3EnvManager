@@ -70,9 +70,23 @@ public class CliOptionsTests
 	[Fact]
 	public void Parse_Get_WithRepeatedKey_CollectsAllInOrder()
 	{
-		var options = CliOptions.Parse(["get", .. CommonArgs, "--key", "FOO", "--key", "BAR", "--key", "BAZ"]);
+		var options = CliOptions.Parse(
+			["get", .. CommonArgs, "--key", "FOO", "--key", "BAR", "--key", "BAZ"]);
 
 		Assert.Equal(["FOO", "BAR", "BAZ"], options.Keys);
+	}
+
+	// `--key "$MYVAR"`에서 변수가 비어 있는 흔한 실수. 인자 오류로 잡지 않으면 "키 없음"(5)이나
+	// --allow-missing과 함께 0으로 끝나 호출자가 설정 실수를 알아채지 못한다.
+	[Theory]
+	[InlineData("")]
+	[InlineData("   ")]
+	public void Parse_Get_WithBlankKey_ThrowsArgumentError(string blankKey)
+	{
+		var ex = Assert.Throws<CliException>(
+			() => CliOptions.Parse(["get", .. CommonArgs, "--key", blankKey]));
+
+		Assert.Equal(ExitCode.ArgumentError, ex.ExitCode);
 	}
 
 	[Fact]

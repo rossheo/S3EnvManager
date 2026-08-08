@@ -123,6 +123,56 @@ public class UserRoleServiceInfraTests
 		await userManager.DeleteAsync(user);
 	}
 
+	// 역할 배타성은 이 서비스의 규약일 뿐 DB 제약이 아니다 - Account/Register.razor가 UserManager를
+	// 직접 써서 부여하므로 두 역할을 동시에 가진 상태가 들어올 수 있다. 그때 "이전 역할"을 하나만
+	// 집어 비교하면, 실제로 권한이 바뀌었는데도 감사 로그가 남지 않는다.
+	[Fact]
+	public async Task SetRoleAsync_WhenUserHoldsMultipleRoles_StillAudits_TheRemoval()
+	{
+		if (!await IsPostgresAvailableAsync())
+		{
+			return;
+		}
+
+		await using var provider = BuildServiceProvider();
+		var roleManager = provider.GetRequiredService<RoleManager<IdentityRole>>();
+		await IdentityRoleSeeder.EnsureRolesSeededAsync(roleManager);
+
+		var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
+		var email = "multirole-" + Guid.NewGuid().ToString("N")[..8] + "@test.local";
+		var user = await CreateUserAsync(userManager, email);
+
+		// 배타성이 깨진 상태를 만든다(UserManager 직접 사용 - 이 서비스를 우회하는 실제 경로와 동일).
+		await userManager.AddToRoleAsync(user, IdentityRoleNames.Guest);
+		await userManager.AddToRoleAsync(user, IdentityRoleNames.Member);
+		Assert.Equal(2, (await userManager.GetRolesAsync(user)).Count);
+
+		var actorUserId = "actor-" + Guid.NewGuid().ToString("N")[..8];
+		var roleService = new UserRoleService(userManager, new AuditLogger(CreateDbContext()));
+
+		// Member로 맞춘다 - 새로 붙는 역할은 없고 Guest만 떨어진다. 실제 권한 축소이므로 남아야 한다.
+		await roleService.SetRoleAsync(user.Id, IdentityRoleNames.Member, actorUserId);
+
+		Assert.Equal(IdentityRoleNames.Member, Assert.Single(await userManager.GetRolesAsync(user)));
+
+		await using (var verifyDb = CreateDbContext())
+		{
+			var log = Assert.Single(
+				await verifyDb.AuditLogs.AsNoTracking()
+					.Where(l => l.ActorUserId == actorUserId
+						&& l.EventType == AuditEventTypes.UserRoleChanged)
+					.ToListAsync());
+
+			// details 전체를 Contains로 보면 to="Member" 때문에 통과해버린다 - from만 콕 집어 본다.
+			var from = System.Text.Json.JsonDocument.Parse(log.Details!).RootElement.GetProperty("from");
+			var fromRoles = from.EnumerateArray().Select(e => e.GetString()).ToList();
+			Assert.Contains(IdentityRoleNames.Guest, fromRoles);
+			Assert.Contains(IdentityRoleNames.Member, fromRoles);
+		}
+
+		await userManager.DeleteAsync(user);
+	}
+
 	// 권한 상승은 이 서버에서 가장 민감한 이벤트인데 감사 로그에 남지 않던 것을 막는다.
 	[Fact]
 	public async Task SetRoleAsync_And_SetLockedOutAsync_WriteAuditLogs()

@@ -42,23 +42,24 @@ public sealed class AwsBootstrapCredentialStore(
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 	}
 
-	public async Task<(string AccessKeyId, string SecretAccessKey)?> GetAsync(
+	public async Task<BootstrapCredentialLookup> GetAsync(
 		CmkRole role, CancellationToken cancellationToken = default)
 	{
 		var entry = await db.AwsBootstrapCredentials.AsNoTracking()
 			.SingleOrDefaultAsync(c => c.Role == role, cancellationToken).ConfigureAwait(false);
 		if (entry is null)
 		{
-			return null;
+			return BootstrapCredentialLookup.NotConfigured;
 		}
 
 		// DataProtection 키링이 사라졌거나(볼륨 유실, DB만 복원) 이 행을 감쌌던 키가 폐기되면
 		// Unprotect가 실패한다. 그대로 던지면 이 메서드를 기동 경로에서 부르는 Program.cs가
-		// 호스트째로 죽어 재설정할 화면조차 못 띄운다 - "자격증명 미설정"으로 내려앉혀
-		// /settings/bootstrap에서 다시 등록할 수 있게 한다(SaveAsync가 이 행을 덮어쓴다).
+		// 호스트째로 죽어 재설정할 화면조차 못 띄운다 - 예외 대신 Unreadable로 알린다.
+		// "미설정(NotConfigured)"으로 뭉개지 않는 것이 중요하다: 호출자가 그걸 "아직 발급 안 됨"으로
+		// 읽으면 Access Key를 새로 발급해 AWS의 2개 슬롯을 태우고 기존 키를 주인 없이 남긴다.
 		try
 		{
-			return (
+			return BootstrapCredentialLookup.Available(
 				_protector.Unprotect(entry.ProtectedAccessKeyId),
 				_protector.Unprotect(entry.ProtectedSecretAccessKey));
 		}
@@ -66,8 +67,8 @@ public sealed class AwsBootstrapCredentialStore(
 		{
 			logger.LogError(ex,
 				"{Role} 부트스트랩 자격증명을 복호화하지 못했습니다(DataProtection 키링 유실/폐기 의심) - " +
-				"미설정 상태로 계속 진행합니다. /settings/bootstrap에서 자격증명을 다시 등록하세요.", role);
-			return null;
+				"이 role은 재등록 전까지 쓸 수 없습니다. /settings/bootstrap에서 다시 등록하세요.", role);
+			return BootstrapCredentialLookup.Unreadable;
 		}
 	}
 

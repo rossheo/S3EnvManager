@@ -211,7 +211,8 @@ public class BundleFetcherTests
 		var store = new FakeBundleObjectStore();
 		var many = Enumerable.Range(0, 20).ToDictionary(i => $"KEY_{i}", i => $"value-{i}");
 		store.SetObject(BaseKey, await EncryptAsync(kms, many));
-		store.SetObject(OverwriteKey, await EncryptAsync(kms, new Dictionary<string, string> { ["KEY_0"] = "ovr" }));
+		store.SetObject(
+			OverwriteKey, await EncryptAsync(kms, new Dictionary<string, string> { ["KEY_0"] = "ovr" }));
 
 		var counting = new CountingKmsKeyOperations(kms);
 		var result = await new BundleFetcher(store, counting)

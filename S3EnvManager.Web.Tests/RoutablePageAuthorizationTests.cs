@@ -30,7 +30,8 @@ public class RoutablePageAuthorizationTests
 			var isRoutableComponent =
 				typeof(IComponent).IsAssignableFrom(type) &&
 				type.GetCustomAttributes(typeof(RouteAttribute), inherit: true).Length > 0 &&
-				type.Namespace?.StartsWith("S3EnvManager.Web.Components.Pages", StringComparison.Ordinal) == true;
+				type.Namespace?.StartsWith(
+					"S3EnvManager.Web.Components.Pages", StringComparison.Ordinal) == true;
 			if (isRoutableComponent)
 			{
 				data.Add(type);

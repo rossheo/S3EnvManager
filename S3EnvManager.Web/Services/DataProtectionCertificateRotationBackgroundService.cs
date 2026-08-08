@@ -11,7 +11,8 @@ public sealed class DataProtectionCertificateRotationBackgroundService(
 {
 	protected override TimeSpan Interval => TimeSpan.FromDays(1);
 
-	protected override Task ExecuteCycleAsync(IServiceProvider services, CancellationToken cancellationToken) =>
+	protected override Task ExecuteCycleAsync(
+		IServiceProvider services, CancellationToken cancellationToken) =>
 		DataProtectionCertificateRotationService.RotateIfDueAsync(
 			services.GetRequiredService<ApplicationDbContext>(),
 			services.GetRequiredService<IOptions<DataProtectionCertificateOptions>>().Value,

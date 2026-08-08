@@ -84,7 +84,8 @@ public class DataProtectionPersistenceInfraTests
 			new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(PostgresConnectionString).Options);
 		var rows = await verifyDb.DataProtectionKeys.AsNoTracking().ToListAsync();
 		var createdRow = Assert.Single(
-			rows, r => r.Xml is not null && r.Xml.Contains(createdKey.KeyId.ToString(), StringComparison.Ordinal));
+			rows,
+			r => r.Xml is not null && r.Xml.Contains(createdKey.KeyId.ToString(), StringComparison.Ordinal));
 
 		Assert.Contains("encryptedSecret", createdRow.Xml);
 		Assert.Contains(nameof(CachedCertificateXmlDecryptor), createdRow.Xml);

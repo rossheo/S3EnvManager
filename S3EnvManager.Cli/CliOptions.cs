@@ -118,12 +118,20 @@ public sealed class CliOptions
 		{
 			throw new CliException(ExitCode.ArgumentError, "get 명령에는 --key가 필요합니다.");
 		}
+		// `--key "$MYVAR"`에서 변수가 비어 있는 흔한 실수를 인자 오류(1)로 잡는다 - 빈 키를
+		// 그대로 통과시키면 "번들에 그 키가 없음"(5)이나 --allow-missing과 함께 0으로 끝나
+		// 호출자가 설정 실수를 알아채지 못한다.
+		if (keys.Any(string.IsNullOrWhiteSpace))
+		{
+			throw new CliException(ExitCode.ArgumentError, "--key에 빈 값을 줄 수 없습니다.");
+		}
 		if (command == CliCommand.GetAll && keys.Count > 0)
 		{
 			throw new CliException(ExitCode.ArgumentError, "get-all은 --key를 받지 않습니다 - get을 쓰세요.");
 		}
 
-		var duplicateKey = keys.GroupBy(k => k, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1)?.Key;
+		var duplicateKey = keys.GroupBy(k => k, StringComparer.Ordinal)
+			.FirstOrDefault(g => g.Count() > 1)?.Key;
 		if (duplicateKey is not null)
 		{
 			throw new CliException(ExitCode.ArgumentError, $"--key가 중복 지정되었습니다: '{duplicateKey}'.");

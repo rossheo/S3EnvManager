@@ -37,8 +37,8 @@ public static class AppPurgeService
 	// S3 DeleteObject는 멱등이라 잠금 없이도 데이터는 안전하지만, 불필요한 중복 호출과 PurgedAt
 	// 갱신 경쟁을 막기 위해 App 하나씩 행 잠금으로 감싼다.
 	private static async Task PurgeOneAsync(
-		ApplicationDbContext db, ISecretObjectStore store, string bucket, Guid appId, IAuditLogger auditLogger,
-		TimeProvider timeProvider, CancellationToken cancellationToken)
+		ApplicationDbContext db, ISecretObjectStore store, string bucket, Guid appId,
+		IAuditLogger auditLogger, TimeProvider timeProvider, CancellationToken cancellationToken)
 	{
 		// NpgsqlRetryingExecutionStrategy는 수동 트랜잭션을 재시도 단위 밖에서 여는 것을 허용하지
 		// 않으므로 시작~커밋 전체를 delegate 안에 넣는다.

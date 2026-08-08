@@ -87,7 +87,8 @@ public class AppDeletionAndPurgeTests
 		await db.SaveChangesAsync();
 
 		var actorUserId = "actor-" + Guid.NewGuid().ToString("N")[..8];
-		var deletionService = new AppDeletionService(CreateDbContext(), iam, new AuditLogger(CreateDbContext()));
+		var deletionService = new AppDeletionService(
+			CreateDbContext(), iam, new AuditLogger(CreateDbContext()));
 		await deletionService.DeleteAsync(app.Id, actorUserId);
 
 		await using var verifyDb = CreateDbContext();

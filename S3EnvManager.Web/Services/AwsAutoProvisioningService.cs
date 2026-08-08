@@ -135,9 +135,19 @@ public sealed class AwsAutoProvisioningService(
 		await RunStepAsync("부트스트랩 app Access Key 확인/발급", async () =>
 		{
 			var existing = await credentialStore.GetAsync(CmkRole.App, cancellationToken).ConfigureAwait(false);
-			if (existing is not null)
+			if (existing.Status == BootstrapCredentialStatus.Available)
 			{
 				return (ProvisioningStepStatus.AlreadyProvisioned, "이미 저장된 자격증명이 있음");
+			}
+			if (existing.Status == BootstrapCredentialStatus.Unreadable)
+			{
+				// 저장된 행은 있는데 못 읽는 상태다. 여기서 "없음"으로 보고 새로 발급하면 AWS의
+				// Access Key 슬롯(최대 2개) 하나를 태우고 기존 키는 주인 없이 남는다 - 자가 치유가
+				// 반복되면 다음 회차는 LimitExceededException으로 막힌다. 재등록이 먼저다.
+				return (ProvisioningStepStatus.Failed,
+					"저장된 app 자격증명을 복호화할 수 없습니다(DataProtection 키링 유실/폐기 의심) - " +
+					"새로 발급하면 Access Key 슬롯을 소모하므로 중단합니다. " +
+					"/settings/bootstrap에서 자격증명을 다시 등록하세요.");
 			}
 
 			ProvisionedCredential issued;

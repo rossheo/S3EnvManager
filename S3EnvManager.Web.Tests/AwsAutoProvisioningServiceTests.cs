@@ -70,7 +70,7 @@ public class AwsAutoProvisioningServiceTests
 		Assert.Equal(CmkStatus.Active, appRegistration.Status);
 
 		var issuedAppCredential = await credentialStore.GetAsync(CmkRole.App);
-		Assert.NotNull(issuedAppCredential);
+		Assert.Equal(BootstrapCredentialStatus.Available, issuedAppCredential.Status);
 		Assert.True(appCredentialOverride.IsSet);
 
 		var primaryPolicy = kmsAdmin.Keys[adminRegistration.Arn].Policy;
@@ -165,6 +165,55 @@ public class AwsAutoProvisioningServiceTests
 
 		var accessKeyStep = report.Steps.Single(s => s.Name.Contains("Access Key"));
 		Assert.True(accessKeyStep.Status != ProvisioningStepStatus.Failed, accessKeyStep.Detail);
+	}
+
+	/// <summary>DataProtection 키링을 잃으면 저장된 app 자격증명을 못 읽는다. 그걸 "아직 발급
+	/// 안 됨"으로 읽고 새로 발급하면 AWS의 Access Key 슬롯(최대 2개) 하나를 태우고 기존 키는
+	/// 주인 없이 남는다 - 자가 치유가 반복되면 다음 회차는 LimitExceededException으로 막힌다.</summary>
+	[Fact]
+	public async Task EnsureProvisionedAsync_WhenStoredAppCredentialIsUnreadable_DoesNotIssueANewAccessKey()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		await ResetSharedProvisioningStateAsync();
+
+		var appIdentity = new FakeBootstrapAppIdentityProvisioner();
+		var kmsAdmin = new FakeKmsKeyAdministration();
+		var auditLogger = new AuditLogger(CreateDbContext());
+		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext());
+
+		// 한 키링으로 저장하고, 다른 키링을 가진 스토어로 읽는다 = 키링 유실 재현.
+		await new AwsBootstrapCredentialStore(
+			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance)
+			.SaveAsync(CmkRole.App, "AKIAEXISTING", "existing-secret");
+		var credentialStore = new AwsBootstrapCredentialStore(
+			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance);
+		Assert.Equal(
+			BootstrapCredentialStatus.Unreadable, (await credentialStore.GetAsync(CmkRole.App)).Status);
+
+		var registryService = new CmkRegistryService(
+			CreateDbContext(), auditLogger, new FakeAppCredentialProvisioner(), new FakeSecretObjectStore(),
+			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin);
+		var service = new AwsAutoProvisioningService(
+			new FakeSecurityTokenService(), kmsAdmin, appIdentity, registryService, credentialStore,
+			new RuntimeAwsCredentialsOverride(), new RuntimeAwsCredentialsOverride(),
+			primaryStorageSettingsStore, new RuntimePrimaryStorageOverride(),
+			new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger),
+			new BucketHealthStatusStore(), auditLogger);
+
+		var report = await service.EnsureProvisionedAsync(
+			new ProvisioningRequest(Bucket: "", Region: "", CreateBucketIfMissing: false),
+			includeBucketProvisioning: false);
+
+		var accessKeyStep = report.Steps.Single(s => s.Name.Contains("Access Key"));
+		Assert.Equal(ProvisioningStepStatus.Failed, accessKeyStep.Status);
+		Assert.Contains("복호화할 수 없습니다", accessKeyStep.Detail);
+		Assert.Empty(await appIdentity.ListAccessKeyIdsAsync());
 	}
 
 	private static async Task ResetSharedProvisioningStateAsync()

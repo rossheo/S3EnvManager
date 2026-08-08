@@ -8,7 +8,8 @@ public sealed class AuditLogRetentionBackgroundService(
 {
 	protected override TimeSpan Interval => TimeSpan.FromHours(6);
 
-	protected override Task ExecuteCycleAsync(IServiceProvider services, CancellationToken cancellationToken) =>
+	protected override Task ExecuteCycleAsync(
+		IServiceProvider services, CancellationToken cancellationToken) =>
 		AuditLogRetentionService.DeleteExpiredLogsAsync(
 			services.GetRequiredService<ApplicationDbContext>(), TimeProvider.System, cancellationToken);
 }

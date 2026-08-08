@@ -110,7 +110,7 @@ public static class Program
 		// 호출마다 base+overwrite 2회씩 KMS Decrypt가 나간다.
 		if (options.Keys.Count > 1)
 		{
-			return RunGetManyAsync(result, options);
+			return RunGetMany(result, options);
 		}
 
 		var singleKey = options.Keys[0];
@@ -134,7 +134,7 @@ public static class Program
 
 	// 키가 하나면 값만 그대로 찍는 기존 동작을 유지해야 해서(스크립트가 그대로 변수에 담는다)
 	// 여러 개일 때만 get-all과 같은 구조화 출력으로 바꾼다.
-	private static Int32 RunGetManyAsync(BundleFetchResult result, CliOptions options)
+	private static Int32 RunGetMany(BundleFetchResult result, CliOptions options)
 	{
 		var (selected, missing) = KeySelection.Select(result.Values, options.Keys);
 

@@ -44,7 +44,8 @@ public static class SopsEnvelopeCodec
 			(dataKey, adminCiphertext) = await adminKms.GenerateDataKeyAsync(
 				adminCmkArn, encryptionContext, cancellationToken)
 				.ConfigureAwait(false);
-			appCiphertext = await appKms.EncryptAsync(appCmkArn, dataKey, encryptionContext, cancellationToken)
+			appCiphertext = await appKms
+				.EncryptAsync(appCmkArn, dataKey, encryptionContext, cancellationToken)
 				.ConfigureAwait(false);
 		}
 
