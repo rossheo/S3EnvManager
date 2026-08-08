@@ -43,7 +43,13 @@ public class DataProtectionPersistenceInfraTests
 		Assert.NotEmpty(keys);
 	}
 
-	/// <summary>마스터 키가 평문이 아니라 encryptedSecret으로 감싸져 저장되는지 확인한다.</summary>
+	/// <summary>마스터 키가 평문이 아니라 encryptedSecret으로 감싸져 저장되는지 확인한다.
+	///
+	/// 여기서 키를 명시적으로 새로 만드는 이유: DataProtection은 유효한 키가 이미 있으면 새 키를
+	/// 만들지 않는다. DataProtectionKeys는 모든 테스트가 공유하는 테이블이라, 앞선 테스트가
+	/// 암호화기 없이 만든 키가 남아 있으면 Protect()가 그 키를 그대로 재사용해 새 행이 생기지
+	/// 않는다 - "가장 최근 행"을 보는 방식으로는 이 단언이 통과할 수 없다(실제로 그래서 실패하고
+	/// 있었다). 이번 호출이 만든 키를 KeyId로 콕 집어 확인한다.</summary>
 	[Fact]
 	public async Task Protect_WithCertificateXmlEncryptor_PersistsEncryptedKey_NotPlaintext()
 	{
@@ -65,6 +71,10 @@ public class DataProtectionPersistenceInfraTests
 			.PostConfigure(options => options.XmlEncryptor = new CachedCertificateXmlEncryptor(cache));
 		await using var provider = services.BuildServiceProvider();
 
+		// 이 provider(=이 XmlEncryptor)로 키를 하나 새로 만들고, 그 키만 확인한다.
+		var now = DateTimeOffset.UtcNow;
+		var createdKey = provider.GetRequiredService<IKeyManager>().CreateNewKey(now, now.AddDays(1));
+
 		var protector = provider.GetRequiredService<IDataProtectionProvider>()
 			.CreateProtector("DataProtectionPersistenceInfraTests.WithCertificate");
 		var protectedValue = protector.Protect("hello-with-certificate");
@@ -72,10 +82,12 @@ public class DataProtectionPersistenceInfraTests
 
 		await using var verifyDb = new ApplicationDbContext(
 			new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(PostgresConnectionString).Options);
-		var latestKey = await verifyDb.DataProtectionKeys.AsNoTracking().OrderByDescending(k => k.Id).FirstAsync();
+		var rows = await verifyDb.DataProtectionKeys.AsNoTracking().ToListAsync();
+		var createdRow = Assert.Single(
+			rows, r => r.Xml is not null && r.Xml.Contains(createdKey.KeyId.ToString(), StringComparison.Ordinal));
 
-		Assert.Contains("encryptedSecret", latestKey.Xml);
-		Assert.Contains(nameof(CachedCertificateXmlDecryptor), latestKey.Xml);
+		Assert.Contains("encryptedSecret", createdRow.Xml);
+		Assert.Contains(nameof(CachedCertificateXmlDecryptor), createdRow.Xml);
 	}
 
 	private static async Task<bool> IsPostgresAvailableAsync()
