@@ -1,4 +1,7 @@
 ﻿@page "/Error"
+@* UseExceptionHandler("/Error")가 재실행하는 경로 - 인증 실패로 예외 화면이 다시 예외를
+   내지 않도록 익명으로 연다. *@
+@attribute [AllowAnonymous]
 @using System.Diagnostics
 
 <PageTitle>Error</PageTitle>

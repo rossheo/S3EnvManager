@@ -1,5 +1,7 @@
 @page "/"
 @page "/dashboard"
+@* 랜딩 페이지라 익명으로도 열리고, 내용은 AuthorizeView로 역할별로 가린다. *@
+@attribute [AllowAnonymous]
 
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity

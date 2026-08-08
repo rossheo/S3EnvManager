@@ -1,5 +1,8 @@
 @page "/not-found"
 @layout Layout.MainLayout
+@* UseStatusCodePagesWithReExecute("/not-found")가 재실행하는 경로 - 404가 로그인 리다이렉트로
+   바뀌면 존재하지 않는 URL이 로그인 화면으로 보인다. *@
+@attribute [AllowAnonymous]
 
 <PageTitle>Not Found</PageTitle>
 

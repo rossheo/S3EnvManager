@@ -1,0 +1,13 @@
+@using Microsoft.AspNetCore.Authorization
+
+@* 이 폴더(및 하위 폴더)의 라우팅 가능한 페이지는 기본적으로 인증을 요구한다 - 새 페이지를
+   추가하면서 @attribute [Authorize]를 빼먹어도 익명 접근이 되지 않도록 하는 안전망이다.
+   개별 페이지의 [Authorize(Roles = ...)]는 이 위에 더해져 더 좁게 제한한다.
+
+   인가 미들웨어의 FallbackPolicy로는 이 효과를 낼 수 없다 - 모든 Blazor 페이지가
+   MapRazorComponents<App>() 엔드포인트 하나를 공유해 로그인 페이지까지 잠기고, 컴포넌트의
+   [Authorize]는 미들웨어가 아니라 AuthorizeRouteView가 처리하기 때문이다.
+
+   의도적으로 익명 접근을 허용하는 페이지는 [AllowAnonymous]를 명시한다(Blazor의
+   AttributeAuthorizeDataCache가 IAllowAnonymous를 만나면 인가 데이터를 비운다). *@
+@attribute [Authorize]
