@@ -2,8 +2,10 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{IdentityRoleNames.Administrator},{IdentityRoleNames.Member}")]
 
+@using System.Security.Claims
 @using Amazon.S3
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using S3EnvManager.Database
 @using S3EnvManager.Web.Services
 
@@ -60,15 +62,24 @@ else
 }
 
 @code {
+	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
 	private MudForm _form = null!;
 	private readonly FormModel _model = new();
 	private bool _loaded;
 	private string? _bucket;
 	private bool _submitting;
 	private string? _errorMessage;
+	private string? _currentUserId;
 
 	protected override async Task OnInitializedAsync()
 	{
+		if (AuthenticationStateTask is not null)
+		{
+			var state = await AuthenticationStateTask;
+			_currentUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+		}
+
 		_bucket = await PrimaryStorageSettingsStore.GetLastProvisionedBucketAsync();
 		_loaded = true;
 	}
@@ -85,7 +96,7 @@ else
 		_submitting = true;
 		try
 		{
-			await AppRegistrationService.RegisterAsync(_model.Name);
+			await AppRegistrationService.RegisterAsync(_model.Name, _currentUserId);
 			Snackbar.Add($"App '{_model.Name}'을(를) 등록했습니다.", Severity.Success);
 			NavigationManager.NavigateTo("/apps");
 		}

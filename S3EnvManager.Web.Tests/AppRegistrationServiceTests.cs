@@ -35,7 +35,8 @@ public class AppRegistrationServiceTests
 			CreateDbContext(),
 			new BucketSelfHealService(new FakeBucketComplianceOperations(), new AuditLogger(CreateDbContext())),
 			new BucketHealthStatusStore(),
-			new PrimaryStorageSettingsStore(CreateDbContext()));
+			new PrimaryStorageSettingsStore(CreateDbContext()),
+			new AuditLogger(CreateDbContext()));
 
 	private static Task<bool> IsEnvironmentAvailableAsync() => TestEnvironment.IsPostgresAvailableAsync();
 

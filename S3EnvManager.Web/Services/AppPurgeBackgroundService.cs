@@ -16,8 +16,10 @@ public sealed class AppPurgeBackgroundService(IServiceScopeFactory scopeFactory)
 				var store = scope.ServiceProvider.GetRequiredService<ISecretObjectStore>();
 				var primaryStorageSettingsStore =
 					scope.ServiceProvider.GetRequiredService<IPrimaryStorageSettingsStore>();
+				// 같은 스코프에서 꺼내야 감사 로그가 퍼지 트랜잭션에 함께 커밋된다.
+				var auditLogger = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
 				await AppPurgeService.PurgeEligibleAppsAsync(
-					db, store, primaryStorageSettingsStore, TimeProvider.System, stoppingToken)
+					db, store, primaryStorageSettingsStore, auditLogger, TimeProvider.System, stoppingToken)
 					.ConfigureAwait(false);
 			}
 

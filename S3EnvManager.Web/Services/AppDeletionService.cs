@@ -30,6 +30,14 @@ public sealed class AppDeletionService(
 		app.DeletedAt = DateTimeOffset.UtcNow;
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
+		// 활성 자격증명이 없는 App도 삭제 자체는 반드시 남긴다 - CredentialRevoked만 남기면
+		// 자격증명이 0개인 App의 삭제가 감사 로그에 아예 나타나지 않는다.
+		var deletionDetails = System.Text.Json.JsonSerializer.Serialize(
+			new { name = app.Name, revokedCredentialCount = activeCredentials.Count }, AuditJsonOptions.Default);
+		await auditLogger.LogAsync(
+			AuditEventTypes.AppDeleted, actorUserId, appId, deletionDetails, cancellationToken)
+			.ConfigureAwait(false);
+
 		foreach (var credential in activeCredentials)
 		{
 			var details = System.Text.Json.JsonSerializer.Serialize(

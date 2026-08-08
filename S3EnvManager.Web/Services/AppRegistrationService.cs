@@ -6,12 +6,14 @@ namespace S3EnvManager.Web.Services;
 
 public sealed class AppRegistrationService(
 	ApplicationDbContext db, IBucketSelfHealService bucketSelfHeal,
-	IBucketHealthStatusStore bucketHealthStatusStore, IPrimaryStorageSettingsStore primaryStorageSettingsStore)
+	IBucketHealthStatusStore bucketHealthStatusStore, IPrimaryStorageSettingsStore primaryStorageSettingsStore,
+	IAuditLogger auditLogger)
 	: IAppRegistrationService
 {
 	private static readonly EnvName[] FixedEnvNames = [EnvName.Dev, EnvName.Staging, EnvName.Product];
 
-	public async Task<App> RegisterAsync(string name, CancellationToken cancellationToken = default)
+	public async Task<App> RegisterAsync(
+		string name, string? actorUserId = null, CancellationToken cancellationToken = default)
 	{
 		var nameError = AppNameValidator.Validate(name);
 		if (nameError is not null)
@@ -63,6 +65,14 @@ public sealed class AppRegistrationService(
 				await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
 				throw;
 			}
+
+			// 자가 치유까지 성공한 뒤에만 남긴다 - "등록됨"이 곧 "쓸 수 있는 버킷을 가리킨다"는 뜻이
+			// 되도록. auditLogger는 같은 스코프의 db를 쓰므로 이 트랜잭션에 함께 커밋된다.
+			var details = System.Text.Json.JsonSerializer.Serialize(
+				new { name, bucket }, AuditJsonOptions.Default);
+			await auditLogger.LogAsync(
+				AuditEventTypes.AppRegistered, actorUserId, app.Id, details, cancellationToken)
+				.ConfigureAwait(false);
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 		}).ConfigureAwait(false);

@@ -37,7 +37,7 @@ public class UserRoleServiceInfraTests
 		{
 			// "첫 관리자" 부트스트랩은 Register.razor/InitialAdminSetupTokenService로 옮겨졌다 -
 			// 여기서는 역할 없는 사용자를 Guest로 채워주는 것만 검증한다.
-			var roleService = new UserRoleService(userManager);
+			var roleService = new UserRoleService(userManager, new AuditLogger(CreateDbContext()));
 			await UserRoleBootstrapService.EnsureDefaultRolesAssignedAsync(userManager);
 			var users = await roleService.ListAsync();
 			Assert.Equal(IdentityRoleNames.Guest, users.Single(u => u.Email == memberEmail).Role);
@@ -69,7 +69,7 @@ public class UserRoleServiceInfraTests
 		var user = await CreateUserAsync(userManager, email);
 		await userManager.AddToRoleAsync(user, IdentityRoleNames.Guest);
 
-		var roleService = new UserRoleService(userManager);
+		var roleService = new UserRoleService(userManager, new AuditLogger(CreateDbContext()));
 		await roleService.SetRoleAsync(user.Id, IdentityRoleNames.Member);
 
 		var roles = await userManager.GetRolesAsync(user);
@@ -84,6 +84,49 @@ public class UserRoleServiceInfraTests
 		// 다른 테스트의 "Administrator가 0명" 전제를 깨지 않도록 정리.
 		await userManager.DeleteAsync(user);
 	}
+
+	// 권한 상승은 이 서버에서 가장 민감한 이벤트인데 감사 로그에 남지 않던 것을 막는다.
+	[Fact]
+	public async Task SetRoleAsync_And_SetLockedOutAsync_WriteAuditLogs()
+	{
+		if (!await IsPostgresAvailableAsync())
+		{
+			return;
+		}
+
+		await using var provider = BuildServiceProvider();
+		var roleManager = provider.GetRequiredService<RoleManager<IdentityRole>>();
+		await IdentityRoleSeeder.EnsureRolesSeededAsync(roleManager);
+
+		var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
+		var email = "audit-role-" + Guid.NewGuid().ToString("N")[..8] + "@test.local";
+		var user = await CreateUserAsync(userManager, email);
+		await userManager.AddToRoleAsync(user, IdentityRoleNames.Guest);
+
+		var actorUserId = "actor-" + Guid.NewGuid().ToString("N")[..8];
+		var roleService = new UserRoleService(userManager, new AuditLogger(CreateDbContext()));
+		await roleService.SetRoleAsync(user.Id, IdentityRoleNames.Member, actorUserId);
+		await roleService.SetLockedOutAsync(user.Id, lockedOut: true, actorUserId);
+
+		await using (var verifyDb = CreateDbContext())
+		{
+			var logs = await verifyDb.AuditLogs.AsNoTracking()
+				.Where(l => l.ActorUserId == actorUserId).ToListAsync();
+
+			var roleLog = Assert.Single(logs, l => l.EventType == AuditEventTypes.UserRoleChanged);
+			Assert.Contains(user.Id, roleLog.Details);
+			Assert.Contains(IdentityRoleNames.Guest, roleLog.Details);
+			Assert.Contains(IdentityRoleNames.Member, roleLog.Details);
+
+			var lockoutLog = Assert.Single(logs, l => l.EventType == AuditEventTypes.UserLockoutChanged);
+			Assert.Contains(user.Id, lockoutLog.Details);
+		}
+
+		await userManager.DeleteAsync(user);
+	}
+
+	private static ApplicationDbContext CreateDbContext() =>
+		new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(PostgresConnectionString).Options);
 
 	private static async Task<ApplicationUser> CreateUserAsync(
 		UserManager<ApplicationUser> userManager, string email)

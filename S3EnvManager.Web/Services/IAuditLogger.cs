@@ -11,6 +11,11 @@ public static class AuditEventTypes
 {
 	public const string SecretEdited = "SecretEdited";
 	public const string OverwriteSecretEdited = "OverwriteSecretEdited";
+	public const string AppRegistered = "AppRegistered";
+	public const string AppDeleted = "AppDeleted";
+	public const string AppPurged = "AppPurged";
+	public const string UserRoleChanged = "UserRoleChanged";
+	public const string UserLockoutChanged = "UserLockoutChanged";
 	public const string CredentialIssued = "CredentialIssued";
 	public const string CredentialRevoked = "CredentialRevoked";
 	public const string BucketSelfHealed = "BucketSelfHealed";

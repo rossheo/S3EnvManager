@@ -10,7 +10,7 @@ public static class AppPurgeService
 
 	public static async Task PurgeEligibleAppsAsync(
 		ApplicationDbContext db, ISecretObjectStore store, IPrimaryStorageSettingsStore primaryStorageSettingsStore,
-		TimeProvider timeProvider, CancellationToken cancellationToken = default)
+		IAuditLogger auditLogger, TimeProvider timeProvider, CancellationToken cancellationToken = default)
 	{
 		var cutoff = timeProvider.GetUtcNow() - RetentionPeriod;
 
@@ -29,15 +29,16 @@ public static class AppPurgeService
 
 		foreach (var appId in eligibleAppIds)
 		{
-			await PurgeOneAsync(db, store, bucket, appId, timeProvider, cancellationToken).ConfigureAwait(false);
+			await PurgeOneAsync(db, store, bucket, appId, auditLogger, timeProvider, cancellationToken)
+				.ConfigureAwait(false);
 		}
 	}
 
 	// S3 DeleteObject는 멱등이라 잠금 없이도 데이터는 안전하지만, 불필요한 중복 호출과 PurgedAt
 	// 갱신 경쟁을 막기 위해 App 하나씩 행 잠금으로 감싼다.
 	private static async Task PurgeOneAsync(
-		ApplicationDbContext db, ISecretObjectStore store, string bucket, Guid appId, TimeProvider timeProvider,
-		CancellationToken cancellationToken)
+		ApplicationDbContext db, ISecretObjectStore store, string bucket, Guid appId, IAuditLogger auditLogger,
+		TimeProvider timeProvider, CancellationToken cancellationToken)
 	{
 		// NpgsqlRetryingExecutionStrategy는 수동 트랜잭션을 재시도 단위 밖에서 여는 것을 허용하지
 		// 않으므로 시작~커밋 전체를 delegate 안에 넣는다.
@@ -73,6 +74,15 @@ public static class AppPurgeService
 
 				app.PurgedAt = timeProvider.GetUtcNow();
 				await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+				// 배경 작업이므로 행위자는 없다(actorUserId: null). auditLogger는 같은 db를 쓰므로
+				// 아래 catch에서 롤백되면 이 감사 로그도 함께 사라진다 - 실제로 지워졌을 때만 남는다.
+				var details = System.Text.Json.JsonSerializer.Serialize(
+					new { name = app.Name, envCount = app.Envs.Count }, AuditJsonOptions.Default);
+				await auditLogger.LogAsync(
+					AuditEventTypes.AppPurged, actorUserId: null, appId, details, cancellationToken)
+					.ConfigureAwait(false);
+
 				await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception) when (!cancellationToken.IsCancellationRequested)

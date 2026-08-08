@@ -65,6 +65,40 @@ public class AppDeletionAndPurgeTests
 		await deletionService.DeleteAsync(app.Id);
 	}
 
+	// 자격증명이 하나도 없는 App을 지우면 CredentialRevoked가 한 건도 안 남는다 - 그래도 삭제
+	// 자체는 감사 로그에 나타나야 한다(그 전에는 흔적이 아예 없었다).
+	[Fact]
+	public async Task DeleteAsync_LogsAppDeleted_EvenWhenNoActiveCredentials()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var appName = "del-noc-" + Guid.NewGuid().ToString("N")[..8];
+		await using var db = CreateDbContext();
+		var iam = new FakeAppCredentialProvisioner();
+
+		var app = new App
+		{
+			Id = Guid.NewGuid(), Name = appName, CreatedAt = DateTimeOffset.UtcNow
+		};
+		db.Apps.Add(app);
+		await db.SaveChangesAsync();
+
+		var actorUserId = "actor-" + Guid.NewGuid().ToString("N")[..8];
+		var deletionService = new AppDeletionService(CreateDbContext(), iam, new AuditLogger(CreateDbContext()));
+		await deletionService.DeleteAsync(app.Id, actorUserId);
+
+		await using var verifyDb = CreateDbContext();
+		var logs = await verifyDb.AuditLogs.AsNoTracking().Where(l => l.AppId == app.Id).ToListAsync();
+		Assert.DoesNotContain(logs, l => l.EventType == AuditEventTypes.CredentialRevoked);
+
+		var deletedLog = Assert.Single(logs, l => l.EventType == AuditEventTypes.AppDeleted);
+		Assert.Equal(actorUserId, deletedLog.ActorUserId);
+		Assert.Contains(appName, deletedLog.Details);
+	}
+
 	[Fact]
 	public async Task PurgeEligibleAppsAsync_DeletesObjects_OnlyAfterRetentionPeriod_AndMarksPurgedAt()
 	{
@@ -106,7 +140,8 @@ public class AppDeletionAndPurgeTests
 		app.DeletedAt = DateTimeOffset.UtcNow.AddDays(-1);
 		await db.SaveChangesAsync();
 		await AppPurgeService.PurgeEligibleAppsAsync(
-			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext()), TimeProvider.System);
+			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext()),
+			new AuditLogger(CreateDbContext()), TimeProvider.System);
 		Assert.NotNull(await store.GetCurrentAsync(TestBucket, objectKey));
 		await using (var verifyDb1 = CreateDbContext())
 		{
@@ -116,12 +151,20 @@ public class AppDeletionAndPurgeTests
 		app.DeletedAt = DateTimeOffset.UtcNow.AddDays(-61);
 		await db.SaveChangesAsync();
 		await AppPurgeService.PurgeEligibleAppsAsync(
-			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext()), TimeProvider.System);
+			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext()),
+			new AuditLogger(CreateDbContext()), TimeProvider.System);
 		Assert.Null(await store.GetCurrentAsync(TestBucket, objectKey));
 		Assert.Null(await store.GetCurrentAsync(TestBucket, overwriteObjectKey));
 		await using (var verifyDb2 = CreateDbContext())
 		{
 			Assert.NotNull((await verifyDb2.Apps.SingleAsync(a => a.Id == app.Id)).PurgedAt);
+
+			// 보존 기간 전 호출에서는 아무것도 안 지웠으므로 AppPurged도 그때는 남지 않아야 한다 -
+			// 실제로 지운 두 번째 호출에서만 정확히 한 건.
+			var purgeLog = Assert.Single(await verifyDb2.AuditLogs.AsNoTracking()
+				.Where(l => l.AppId == app.Id && l.EventType == AuditEventTypes.AppPurged).ToListAsync());
+			Assert.Null(purgeLog.ActorUserId);
+			Assert.Contains(appName, purgeLog.Details);
 		}
 	}
 

@@ -95,7 +95,7 @@ else
 		_errorMessage = null;
 		try
 		{
-			await UserRoleService.SetRoleAsync(userId, newRole);
+			await UserRoleService.SetRoleAsync(userId, newRole, _currentUserId);
 			await ReloadAsync();
 			Snackbar.Add("역할을 변경했습니다.", Severity.Success);
 		}
@@ -110,7 +110,7 @@ else
 		_errorMessage = null;
 		try
 		{
-			await UserRoleService.SetLockedOutAsync(userId, lockedOut);
+			await UserRoleService.SetLockedOutAsync(userId, lockedOut, _currentUserId);
 			await ReloadAsync();
 			Snackbar.Add(lockedOut ? "계정을 잠갔습니다." : "계정 잠금을 해제했습니다.", Severity.Success);
 		}
