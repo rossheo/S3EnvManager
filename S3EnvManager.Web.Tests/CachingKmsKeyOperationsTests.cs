@@ -90,6 +90,35 @@ public class CachingKmsKeyOperationsTests
 		Assert.NotEqual(firstWrap, secondWrap);
 	}
 
+	// SizeLimit이 걸린 캐시에 Size 없이 Set하면 InvalidOperationException이 난다 - Program.cs가
+	// 전용 캐시에 SizeLimit을 거는 이상, 이 데코레이터는 항상 Size를 지정해야 한다.
+	[Fact]
+	public async Task Decrypt_WorksWithSizeLimitedCache()
+	{
+		var inner = new CountingKmsKeyOperations(new FakeKmsKeyOperations());
+		var sizeLimited = new MemoryCache(new MemoryCacheOptions
+		{
+			SizeLimit = CachingKmsKeyOperations.DecryptCacheSizeLimit,
+		});
+		var cached = new CachingKmsKeyOperations(inner, sizeLimited);
+
+		var context = Context("alpha");
+		var (plaintext, blob) = await cached.GenerateDataKeyAsync(AdminArn, context);
+
+		Assert.Equal(plaintext, await cached.DecryptAsync(AdminArn, blob, context));
+		Assert.Equal(plaintext, await cached.DecryptAsync(AdminArn, blob, context));
+		Assert.Equal(1, inner.DecryptCalls);
+	}
+
+	// 편집 세션 하나를 버티지 못하던 5분에서 올린 값이다 - 회귀로 다시 줄어들면 잡는다.
+	[Fact]
+	public void DecryptCacheDuration_IsLongEnoughForAnEditSession()
+	{
+		Assert.True(
+			CachingKmsKeyOperations.DecryptCacheDuration >= TimeSpan.FromMinutes(30),
+			$"TTL이 {CachingKmsKeyOperations.DecryptCacheDuration}로 줄었습니다 - 편집 세션 중 재-Decrypt가 발생합니다.");
+	}
+
 	// 계측이 실제로 값을 내보내는지 확인한다 - 절감 조치의 효과를 숫자로 볼 수 없으면
 	// 이후 K1~K4는 검증이 불가능하다.
 	[Fact]

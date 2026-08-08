@@ -32,6 +32,12 @@ builder.Services.AddMetrics();
 builder.Services.AddSingleton<KmsMetrics>();
 builder.Services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(KmsMetrics.MeterName));
 
+// Decrypt 캐시는 공유 IMemoryCache가 아니라 전용 인스턴스를 쓴다 - SizeLimit이 걸린 캐시는
+// 모든 Set이 Size를 지정해야 해서, 공유 캐시에 걸면 그것을 쓰는 다른 코드(프레임워크 포함)의
+// Set이 전부 깨진다.
+builder.Services.AddKeyedSingleton<IMemoryCache>(CachingKmsKeyOperations.CacheServiceKey, (_, _) =>
+	new MemoryCache(new MemoryCacheOptions { SizeLimit = CachingKmsKeyOperations.DecryptCacheSizeLimit }));
+
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
@@ -120,7 +126,8 @@ builder.Services.AddKeyedSingleton<IAmazonKeyManagementService>(CmkRole.App, (sp
 builder.Services.AddKeyedSingleton<IKmsKeyOperations>(CmkRole.App, (sp, _) =>
 	new CachingKmsKeyOperations(
 		new AwsKmsKeyOperations(sp.GetRequiredKeyedService<IAmazonKeyManagementService>(CmkRole.App)),
-		sp.GetRequiredService<IMemoryCache>(), sp.GetRequiredService<KmsMetrics>()));
+		sp.GetRequiredKeyedService<IMemoryCache>(CachingKmsKeyOperations.CacheServiceKey),
+		sp.GetRequiredService<KmsMetrics>()));
 builder.Services.AddScoped<IAwsBootstrapCredentialStore, AwsBootstrapCredentialStore>();
 
 builder.Services.AddScoped<IKmsKeyAdministration, AwsKmsKeyAdministration>();
@@ -139,7 +146,8 @@ builder.Services.AddScoped<IAppRegistrationService, AppRegistrationService>();
 builder.Services.AddScoped<IKmsKeyOperations>(sp =>
 	new CachingKmsKeyOperations(
 		new AwsKmsKeyOperations(sp.GetRequiredService<IAmazonKeyManagementService>()),
-		sp.GetRequiredService<IMemoryCache>(), sp.GetRequiredService<KmsMetrics>()));
+		sp.GetRequiredKeyedService<IMemoryCache>(CachingKmsKeyOperations.CacheServiceKey),
+		sp.GetRequiredService<KmsMetrics>()));
 builder.Services.AddScoped<ISecretObjectStore, S3SecretObjectStore>();
 builder.Services.AddScoped<ISecretBundleService, SecretBundleService>();
 builder.Services.AddSingleton<IDataKeyCache, DataKeyCache>();
