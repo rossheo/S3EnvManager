@@ -85,6 +85,44 @@ public class UserRoleServiceInfraTests
 		await userManager.DeleteAsync(user);
 	}
 
+	// 유일한 Administrator가 스스로를 강등/잠금하면 아무도 관리 화면에 못 들어간다. Users.razor가
+	// 컨트롤을 Disabled로 막고 있었지만 그건 화면 쪽 방어라 서비스 계층에도 가드가 필요하다.
+	[Fact]
+	public async Task SetRoleAsync_And_SetLockedOutAsync_RejectSelfChange()
+	{
+		if (!await IsPostgresAvailableAsync())
+		{
+			return;
+		}
+
+		await using var provider = BuildServiceProvider();
+		var roleManager = provider.GetRequiredService<RoleManager<IdentityRole>>();
+		await IdentityRoleSeeder.EnsureRolesSeededAsync(roleManager);
+
+		var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
+		var email = "self-guard-" + Guid.NewGuid().ToString("N")[..8] + "@test.local";
+		var user = await CreateUserAsync(userManager, email);
+		await userManager.AddToRoleAsync(user, IdentityRoleNames.Administrator);
+
+		var roleService = new UserRoleService(userManager, new AuditLogger(CreateDbContext()));
+
+		await Assert.ThrowsAsync<InvalidOperationException>(
+			() => roleService.SetRoleAsync(user.Id, IdentityRoleNames.Guest, actorUserId: user.Id));
+		await Assert.ThrowsAsync<InvalidOperationException>(
+			() => roleService.SetLockedOutAsync(user.Id, lockedOut: true, actorUserId: user.Id));
+
+		// 역할과 잠금 상태가 그대로여야 한다.
+		Assert.Equal(IdentityRoleNames.Administrator, Assert.Single(await userManager.GetRolesAsync(user)));
+		Assert.False(await userManager.IsLockedOutAsync(user));
+
+		// 다른 관리자가 바꾸는 것은 여전히 허용된다.
+		await roleService.SetRoleAsync(user.Id, IdentityRoleNames.Member, actorUserId: "someone-else");
+		Assert.Equal(IdentityRoleNames.Member, Assert.Single(await userManager.GetRolesAsync(user)));
+
+		// 다른 테스트의 "Administrator가 0명" 전제를 깨지 않도록 정리.
+		await userManager.DeleteAsync(user);
+	}
+
 	// 권한 상승은 이 서버에서 가장 민감한 이벤트인데 감사 로그에 남지 않던 것을 막는다.
 	[Fact]
 	public async Task SetRoleAsync_And_SetLockedOutAsync_WriteAuditLogs()

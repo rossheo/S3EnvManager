@@ -12,6 +12,18 @@ public sealed class AppSecretKeyCipher(ApplicationDbContext db, IKmsKeyOperation
 {
 	private const Int32 NonceSize = 12;
 	private const Int32 TagSize = 16;
+
+	// DataKeyGeneration 계열(이 클래스, DataKeyRotationService, CmkRegistryService의 재래핑)은
+	// KMS encryption context 없이 감싼다. sops 번들 경로가 {app: appName}을 넣는 것과 다른데,
+	// 이유는 감싸는 CMK가 다르기 때문이다: 번들은 Application이 직접 Decrypt하는 app-facing
+	// CMK로도 감싸므로 "어느 App의 것인지"를 ciphertext에 묶고 키 정책 조건으로도 쓸 수 있어야
+	// 하지만, DataKeyGeneration은 S3EnvManager만 접근 가능한 admin CMK로만 감싸므로 혼동시킬
+	// 외부 주체 자체가 없다.
+	//
+	// 바꾸려면 마이그레이션이 필요하다 - KMS는 wrap 시점과 다른 context면 Decrypt를 거부하므로,
+	// 지금 encrypt 쪽에만 context를 넣으면 기존 세대가 전부 열리지 않게 되고 그 세대로 암호화된
+	// App 시크릿 키·DbBackupAccount 비밀번호·SharedSecret 값이 통째로 복구 불능이 된다.
+	// 세대별 context(또는 버전) 컬럼을 추가하고 재래핑 경로까지 함께 고쳐야 한다.
 	private static readonly IReadOnlyDictionary<string, string> NoContext = new Dictionary<string, string>();
 
 	public async Task<(byte[] Ciphertext, Guid DataKeyId)> EncryptAsync(

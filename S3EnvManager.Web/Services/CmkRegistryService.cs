@@ -12,6 +12,8 @@ public sealed class CmkRegistryService(
 	IPrimaryStorageSettingsStore primaryStorageSettingsStore,
 	IKmsKeyAdministration kmsKeyAdministration) : ICmkRegistryService
 {
+	// DataKeyGeneration 재래핑용 - 원래 wrap이 context 없이 이뤄졌으므로 여기서도 없어야 한다
+	// (KMS는 wrap 시점과 다르면 Decrypt를 거부한다). 근거는 AppSecretKeyCipher.NoContext 주석 참고.
 	private static readonly IReadOnlyDictionary<string, string> NoContext = new Dictionary<string, string>();
 	private static readonly SecretBundleKind[] AllKinds = [SecretBundleKind.Base, SecretBundleKind.Overwrite];
 

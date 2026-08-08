@@ -23,6 +23,8 @@ public sealed class UserRoleService(UserManager<ApplicationUser> userManager, IA
 	public async Task SetRoleAsync(
 		string userId, string roleName, string? actorUserId = null, CancellationToken cancellationToken = default)
 	{
+		EnsureNotSelf(userId, actorUserId, "자기 자신의 역할은 변경할 수 없습니다.");
+
 		var user = await userManager.FindByIdAsync(userId).ConfigureAwait(false)
 			?? throw new InvalidOperationException("사용자를 찾을 수 없습니다.");
 
@@ -64,6 +66,8 @@ public sealed class UserRoleService(UserManager<ApplicationUser> userManager, IA
 	public async Task SetLockedOutAsync(
 		string userId, bool lockedOut, string? actorUserId = null, CancellationToken cancellationToken = default)
 	{
+		EnsureNotSelf(userId, actorUserId, "자기 자신의 계정 잠금 상태는 변경할 수 없습니다.");
+
 		var user = await userManager.FindByIdAsync(userId).ConfigureAwait(false)
 			?? throw new InvalidOperationException("사용자를 찾을 수 없습니다.");
 
@@ -80,5 +84,20 @@ public sealed class UserRoleService(UserManager<ApplicationUser> userManager, IA
 		await auditLogger.LogAsync(
 			AuditEventTypes.UserLockoutChanged, actorUserId, appId: null, lockoutDetails, cancellationToken)
 			.ConfigureAwait(false);
+	}
+
+	// 유일한 Administrator가 스스로를 강등/잠금하면 CMK 등록·부트스트랩 화면에 아무도 못 들어가고
+	// 복구 경로가 DB 직접 수정뿐이다. Users.razor가 이미 해당 컨트롤을 Disabled로 막지만 그건
+	// 화면 쪽 방어라, 다른 호출자가 생기면 그대로 뚫린다.
+	//
+	// actorUserId는 선택 파라미터라 넘기지 않는 호출자는 이 가드를 지나간다 - 여기서 막는 것은
+	// "행위자를 아는 호출에서의 자기 변경"까지다. 첫 Administrator 승격은 UserManager를 직접
+	// 쓰는 Account/Register.razor 경로라 이 가드에 걸리지 않는다.
+	private static void EnsureNotSelf(string userId, string? actorUserId, string message)
+	{
+		if (actorUserId is not null && string.Equals(userId, actorUserId, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException(message);
+		}
 	}
 }

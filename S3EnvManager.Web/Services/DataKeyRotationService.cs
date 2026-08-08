@@ -16,6 +16,8 @@ public enum DataKeyRotationOutcome
 /// 잠금 삼아 확인 후 발급을 직렬화한다.</summary>
 public static class DataKeyRotationService
 {
+	// 새 세대도 기존 세대와 같은 규약(context 없음)으로 감싼다 - 근거는
+	// AppSecretKeyCipher.NoContext 주석 참고.
 	private static readonly IReadOnlyDictionary<string, string> NoContext = new Dictionary<string, string>();
 
 	public static Task<DataKeyRotationOutcome> RotateIfDueAsync(
