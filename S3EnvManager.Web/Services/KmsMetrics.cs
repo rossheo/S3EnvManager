@@ -15,6 +15,7 @@ public sealed class KmsMetrics
 
 	private readonly Counter<Int64> _calls;
 	private readonly Counter<Int64> _decryptCache;
+	private readonly Counter<Int64> _dataKeyReuse;
 
 	public KmsMetrics(IMeterFactory meterFactory)
 	{
@@ -25,6 +26,9 @@ public sealed class KmsMetrics
 		_decryptCache = meter.CreateCounter<Int64>(
 			"s3envmanager.kms.decrypt_cache", unit: "{lookup}",
 			description: "Decrypt 캐시 조회 결과(hit/miss).");
+		_dataKeyReuse = meter.CreateCounter<Int64>(
+			"s3envmanager.kms.datakey_reuse", unit: "{lookup}",
+			description: "번들 저장 시 감싼 데이터 키 재사용 결과(hit이면 그 저장은 KMS를 0회 쓴다).");
 	}
 
 	public void RecordGenerateDataKey() => _calls.Add(1, new KeyValuePair<string, object?>("operation", "generate_data_key"));
@@ -36,4 +40,8 @@ public sealed class KmsMetrics
 	public void RecordDecryptCacheHit() => _decryptCache.Add(1, new KeyValuePair<string, object?>("result", "hit"));
 
 	public void RecordDecryptCacheMiss() => _decryptCache.Add(1, new KeyValuePair<string, object?>("result", "miss"));
+
+	public void RecordDataKeyReuseHit() => _dataKeyReuse.Add(1, new KeyValuePair<string, object?>("result", "hit"));
+
+	public void RecordDataKeyReuseMiss() => _dataKeyReuse.Add(1, new KeyValuePair<string, object?>("result", "miss"));
 }

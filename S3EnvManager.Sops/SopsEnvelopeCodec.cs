@@ -15,6 +15,10 @@ public static class SopsEnvelopeCodec
 	/// 분리해서 받는다. 생성된 평문 데이터 키도 함께 반환한다 - 호출자가 직후 자체 검증을 위해
 	/// 다시 KMS Decrypt를 부르지 않고 <see cref="DecryptWithDataKey"/>로 로컬 검증할 수 있도록.
 	/// </summary>
+	/// <param name="reusableDataKey">이미 감싸둔 데이터 키를 재사용한다(KMS 호출 0회). 재사용
+	/// 여부와 한도는 이 패키지가 정하지 않는다 - 호출자(S3EnvManager.Web)의 정책이다. 넘긴 값이
+	/// 이 <paramref name="appName"/>/CMK ARN 조합으로 감싼 것이 아니면, 트레일러가 실제 wrap과
+	/// 다른 encryption context를 주장하게 되어 그 번들은 영구히 복호화 불가능해진다.</param>
 	public static async Task<SopsEncryptResult> EncryptAsync(
 		IEnumerable<KeyValuePair<string, string>> plaintextValues,
 		string adminCmkArn,
@@ -22,15 +26,27 @@ public static class SopsEnvelopeCodec
 		string appName,
 		IKmsKeyOperations adminKms,
 		IKmsKeyOperations appKms,
+		SopsWrappedDataKey? reusableDataKey = null,
 		CancellationToken cancellationToken = default)
 	{
 		var encryptionContext = new Dictionary<string, string> { [EncryptionContextAppKey] = appName };
 
-		var (dataKey, adminCiphertext) = await adminKms.GenerateDataKeyAsync(
-			adminCmkArn, encryptionContext, cancellationToken)
-			.ConfigureAwait(false);
-		var appCiphertext = await appKms.EncryptAsync(appCmkArn, dataKey, encryptionContext, cancellationToken)
-			.ConfigureAwait(false);
+		byte[] dataKey;
+		byte[] adminCiphertext;
+		byte[] appCiphertext;
+		if (reusableDataKey is { } reused)
+		{
+			(dataKey, adminCiphertext, appCiphertext) =
+				(reused.DataKey, reused.AdminCiphertext, reused.AppCiphertext);
+		}
+		else
+		{
+			(dataKey, adminCiphertext) = await adminKms.GenerateDataKeyAsync(
+				adminCmkArn, encryptionContext, cancellationToken)
+				.ConfigureAwait(false);
+			appCiphertext = await appKms.EncryptAsync(appCmkArn, dataKey, encryptionContext, cancellationToken)
+				.ConfigureAwait(false);
+		}
 
 		var document = new SopsDotEnvDocument
 		{
@@ -54,7 +70,9 @@ public static class SopsEnvelopeCodec
 		document.EncryptedMac = SopsValueCipher.Encrypt(
 			macPlaintext, dataKey, MacAdditionalData(document.LastModified));
 
-		return new SopsEncryptResult(document.Serialize(), dataKey);
+		return new SopsEncryptResult(
+			document.Serialize(), dataKey,
+			new SopsWrappedDataKey(dataKey, adminCiphertext, appCiphertext));
 	}
 
 	/// <summary>S3EnvManager 자신의 재편집 경로 - admin(primary) 엔트리(index 0)로 복호화한다.</summary>
@@ -159,4 +177,12 @@ public static class SopsEnvelopeCodec
 
 /// <summary><see cref="SopsEnvelopeCodec.EncryptAsync"/>의 결과 - 암호화된 파일 내용과, 자체
 /// 검증을 KMS 재호출 없이 로컬에서 할 수 있도록 생성된 평문 데이터 키를 함께 담는다.</summary>
-public sealed record SopsEncryptResult(string Content, byte[] DataKey);
+public sealed record SopsEncryptResult(string Content, byte[] DataKey, SopsWrappedDataKey WrappedDataKey);
+
+/// <summary>평문 데이터 키와, 그것을 admin/app CMK로 각각 감싼 ciphertext 한 벌.
+/// <see cref="SopsEnvelopeCodec.EncryptAsync"/>에 되돌려주면 KMS를 다시 부르지 않는다.
+///
+/// 이 한 벌은 감쌀 때 쓴 (adminCmkArn, appCmkArn, appName) 조합에만 유효하다 - encryption
+/// context에 appName이 들어가므로 다른 App에 쓰면 트레일러가 거짓 context를 주장하게 되어
+/// 그 번들은 영구히 복호화 불가능해진다.</summary>
+public sealed record SopsWrappedDataKey(byte[] DataKey, byte[] AdminCiphertext, byte[] AppCiphertext);

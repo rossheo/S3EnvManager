@@ -17,6 +17,7 @@ public static class FeatureSwitchKeys
 	public const string AllowForgotPassword = "AllowForgotPassword";
 	public const string AllowResendEmailConfirmation = "AllowResendEmailConfirmation";
 	public const string AutoProvisioningSelfHeal = "AutoProvisioningSelfHeal";
+	public const string ReuseDataKeyOnSave = "ReuseDataKeyOnSave";
 
 	public static readonly IReadOnlyList<(string Key, bool DefaultEnabled, string Description)> Known =
 	[
@@ -27,5 +28,10 @@ public static class FeatureSwitchKeys
 			"켜져 있고 admin 부트스트랩 자격증명이 등록돼 있으면, 매 기동마다 부트스트랩 app IAM 사용자/CMK 2개/키 정책/CMK " +
 			"레지스트리/app 정책·Access Key를 자동으로 재확인·복구한다(S3 버킷은 대상이 아님 - 버킷 자가 치유가 이미 담당). " +
 			"실패해도 기동을 막지 않는다."),
+		(ReuseDataKeyOnSave, false,
+			"켜면 번들 저장 시 감싼 데이터 키를 같은 App 안에서 최대 10분/50회까지 재사용해 KMS 호출을 " +
+			"저장당 2회에서 0회로 줄인다(KMS free tier 절감용). 대가는 데이터 키 하나가 그 창 안의 여러 번들을 " +
+			"함께 보호하게 되는 것이다 - 그 키가 유출되면 한 번들이 아니라 그 전부가 노출된다. " +
+			"재사용 범위는 App과 CMK ARN 조합으로 한정되며 CMK를 승격하면 자동으로 새 키를 쓴다."),
 	];
 }

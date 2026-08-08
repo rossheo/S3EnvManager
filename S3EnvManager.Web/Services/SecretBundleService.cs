@@ -14,7 +14,10 @@ public sealed class SecretBundleService(
 	IKmsKeyOperations kms,
 	[FromKeyedServices(CmkRole.App)] IKmsKeyOperations appKms,
 	IAuditLogger auditLogger,
-	IPrimaryStorageSettingsStore primaryStorageSettingsStore)
+	IPrimaryStorageSettingsStore primaryStorageSettingsStore,
+	// 데이터 키 재사용은 opt-in이라 배선하지 않으면 꺼진 동작이 된다 - 안전한 쪽이 기본이다.
+	IFeatureSwitchService? featureSwitchService = null,
+	IReusableDataKeyCache? reusableDataKeyCache = null)
 	: ISecretBundleService
 {
 	// 저장 히스토리 화면이 한 번에 가져오는 최신 버전 수 상한.
@@ -97,9 +100,28 @@ public sealed class SecretBundleService(
 			// 검증 실패 시 되돌릴 직전 버전을 쓰기 전에 미리 잡아둔다.
 			var previous = await store.GetCurrentAsync(bucket, key, cancellationToken).ConfigureAwait(false);
 
+			// 감싼 데이터 키 재사용은 기본으로 꺼져 있다 - 데이터 키 하나가 여러 번들을 함께
+			// 보호하게 되는 보안 트레이드오프가 있어 운영자가 명시적으로 켜야 한다.
+			// 캐시 범위가 (App, admin ARN, app ARN)이라 CMK 승격 후 첫 저장은 자연히 새 키를 쓴다.
+			SopsWrappedDataKey? reusableDataKey = null;
+			var reuseEnabled = featureSwitchService is not null && reusableDataKeyCache is not null &&
+				await featureSwitchService.IsEnabledAsync(
+					FeatureSwitchKeys.ReuseDataKeyOnSave, cancellationToken).ConfigureAwait(false);
+			if (reuseEnabled &&
+				reusableDataKeyCache!.TryGet(app.Name, adminArn, appArn, out var cachedDataKey))
+			{
+				reusableDataKey = cachedDataKey;
+			}
+
 			var encryptResult = await SopsEnvelopeCodec.EncryptAsync(
-				editedValues, adminArn, appArn, app.Name, kms, appKms, cancellationToken)
+				editedValues, adminArn, appArn, app.Name, kms, appKms, reusableDataKey, cancellationToken)
 				.ConfigureAwait(false);
+
+			// 방금 만든 키만 캐시에 넣는다(재사용분을 다시 넣으면 수명이 무한정 연장된다).
+			if (reuseEnabled && reusableDataKey is null)
+			{
+				reusableDataKeyCache!.Set(app.Name, adminArn, appArn, encryptResult.WrappedDataKey);
+			}
 			var putResult = await store.PutAsync(bucket, key, encryptResult.Content, actorEmail, cancellationToken)
 				.ConfigureAwait(false);
 

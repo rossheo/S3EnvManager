@@ -149,6 +149,8 @@ builder.Services.AddScoped<IKmsKeyOperations>(sp =>
 		sp.GetRequiredKeyedService<IMemoryCache>(CachingKmsKeyOperations.CacheServiceKey),
 		sp.GetRequiredService<KmsMetrics>()));
 builder.Services.AddScoped<ISecretObjectStore, S3SecretObjectStore>();
+builder.Services.AddSingleton<IReusableDataKeyCache>(sp =>
+	new ReusableDataKeyCache(TimeProvider.System, sp.GetRequiredService<KmsMetrics>()));
 builder.Services.AddScoped<ISecretBundleService, SecretBundleService>();
 builder.Services.AddSingleton<IDataKeyCache, DataKeyCache>();
 builder.Services.AddScoped<IAppSecretKeyCipher, AppSecretKeyCipher>();
