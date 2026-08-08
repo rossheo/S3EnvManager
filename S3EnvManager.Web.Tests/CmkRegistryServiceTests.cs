@@ -337,8 +337,24 @@ public class CmkRegistryServiceTests
 		var versionsBeforeRemoval = await store.ListVersionsAsync(TestBucket, objectKey);
 		Assert.True(versionsBeforeRemoval.Count >= 2, "재래핑 검증을 위해 최소 2개 버전이 있어야 한다.");
 
+		// 화면이 "제거" 확인 창에 띄우는 상한 견적. 견적 자체는 DB만 보고 계산해야 한다 -
+		// 견적을 내려고 S3/KMS를 부르면 보여주려던 비용을 견적이 먼저 쓰게 된다.
+		var kmsCallsBeforeEstimate = kms.TotalCalls;
+		var estimate = await registryService.EstimateRemovalCostAsync(registrationA.CmkId);
+		Assert.Equal(kmsCallsBeforeEstimate, kms.TotalCalls);
+		Assert.True(estimate.BundleCount > 0);
+		Assert.True(estimate.DataKeyGenerationCount > 0, "이 CMK로 감싼 데이터 키 세대가 있어야 한다.");
+		Assert.Equal((estimate.BundleCount + estimate.DataKeyGenerationCount) * 2, estimate.MaxKmsCalls);
+
 		// 파괴적: CMK-A로 감싼 noncurrent 버전은 영구히 삭제된다.
+		var kmsCallsBeforeRemoval = kms.TotalCalls;
 		await registryService.RemoveAsync(registrationA.CmkId);
+
+		// 견적은 상한이어야 한다 - 실제 호출이 이보다 많으면 화면이 거짓말을 한 것이다.
+		var actualKmsCalls = kms.TotalCalls - kmsCallsBeforeRemoval;
+		Assert.True(
+			actualKmsCalls <= estimate.MaxKmsCalls,
+			$"실제 KMS 호출 {actualKmsCalls}회가 견적 상한 {estimate.MaxKmsCalls}회를 넘었습니다.");
 
 		var currentStored = await store.GetCurrentAsync(TestBucket, objectKey);
 		var currentDocument = SopsDotEnvDocument.Parse(currentStored!.Content);

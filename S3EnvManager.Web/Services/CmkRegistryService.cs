@@ -184,6 +184,26 @@ public sealed class CmkRegistryService(
 		}
 	}
 
+	public async Task<CmkRemovalEstimate> EstimateRemovalCostAsync(
+		Guid cmkId, CancellationToken cancellationToken = default)
+	{
+		var target = await db.CmkRegistrations.AsNoTracking()
+			.SingleAsync(c => c.CmkId == cmkId, cancellationToken).ConfigureAwait(false);
+
+		// 제거 경로와 같은 대상 집합을 세야 한다 - 소프트 삭제된 App은 제외한다.
+		var bundleCount = await db.Envs.AsNoTracking()
+			.CountAsync(e => e.App!.DeletedAt == null, cancellationToken).ConfigureAwait(false)
+			* AllKinds.Length;
+
+		// DataKeyGeneration은 admin CMK로만 감싼다 - app role 제거는 여기에 손대지 않는다.
+		var generationCount = target.Role == CmkRole.Admin
+			? await db.DataKeyGenerations.AsNoTracking()
+				.CountAsync(g => g.CmkId == target.CmkId, cancellationToken).ConfigureAwait(false)
+			: 0;
+
+		return new CmkRemovalEstimate(bundleCount, generationCount);
+	}
+
 	private async Task RemoveAppRoleCmkAsync(
 		CmkRegistration target, string? actorUserId, CancellationToken cancellationToken)
 	{

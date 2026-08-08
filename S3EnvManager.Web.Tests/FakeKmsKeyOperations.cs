@@ -16,10 +16,16 @@ public sealed class FakeKmsKeyOperations : IKmsKeyOperations
 	private static readonly Dictionary<Int32, Wrapped> WrappedById = [];
 	private static Int32 nextId;
 
+	/// <summary>이 인스턴스를 거쳐 나간 KMS 호출 수(GenerateDataKey + Encrypt + Decrypt).
+	/// 감싼 데이터는 static으로 공유하지만 카운터는 인스턴스 단위라, 한 테스트가 특정 구간의
+	/// 호출 수만 재는 데 쓸 수 있다.</summary>
+	public Int32 TotalCalls { get; private set; }
+
 	public Task<(byte[] PlaintextKey, byte[] CiphertextBlob)> GenerateDataKeyAsync(
 		string cmkArn, IReadOnlyDictionary<string, string> encryptionContext,
 		CancellationToken cancellationToken = default)
 	{
+		TotalCalls++;
 		var plaintextKey = new byte[32];
 		Random.Shared.NextBytes(plaintextKey);
 		var blob = Store(cmkArn, plaintextKey, encryptionContext);
@@ -28,13 +34,17 @@ public sealed class FakeKmsKeyOperations : IKmsKeyOperations
 
 	public Task<byte[]> EncryptAsync(
 		string cmkArn, byte[] plaintextKey, IReadOnlyDictionary<string, string> encryptionContext,
-		CancellationToken cancellationToken = default) =>
-		Task.FromResult(Store(cmkArn, plaintextKey, encryptionContext));
+		CancellationToken cancellationToken = default)
+	{
+		TotalCalls++;
+		return Task.FromResult(Store(cmkArn, plaintextKey, encryptionContext));
+	}
 
 	public Task<byte[]> DecryptAsync(
 		string cmkArn, byte[] ciphertextBlob, IReadOnlyDictionary<string, string> encryptionContext,
 		CancellationToken cancellationToken = default)
 	{
+		TotalCalls++;
 		var id = BitConverter.ToInt32(ciphertextBlob);
 		if (!WrappedById.TryGetValue(id, out var entry))
 		{
