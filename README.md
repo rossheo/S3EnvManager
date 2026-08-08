@@ -180,6 +180,12 @@ dotnet test S3EnvManager.Sops.Tests
 `*InfraTests.cs`로 끝나는 테스트는 실제 Postgres(`localhost:55432`)가 필요하다 — mocking
 대신 실제 인프라로 검증하는 것을 원칙으로 한다.
 
+> **테스트는 대상 DB를 파괴적으로 다룬다.** "role당 활성 CMK 하나" 같은 전역 전제를 만들려고
+> `CmkRegistrations`/`DataKeyGenerations`/`AppCredentials`/`SharedSecrets` 등을 통째로
+> 지우고, fake ARN을 가진 활성 CMK와 테스트 프로세스에서만 유효한 DataProtection 키로
+> 암호화된 행을 남긴다(테스트는 시작 시점에만 정리한다). 그 상태로 앱을 띄우면 fake ARN으로
+> 실제 KMS를 부르게 되어 정상 동작하지 않는다 — **개발용 DB와 테스트용 DB를 같이 쓰지 말 것.**
+
 ## 라이선스
 
 [MIT](LICENSE)

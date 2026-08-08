@@ -178,7 +178,9 @@ public class AwsAutoProvisioningServiceTests
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"SharedSecrets\"");
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"DataKeyGenerations\"");
 		await db.CmkRegistrations.ExecuteDeleteAsync();
-		await db.AwsBootstrapCredentials.Where(c => c.Role == CmkRole.App).ExecuteDeleteAsync();
+		// CmkRegistrations를 전부 지우므로 부트스트랩 자격증명도 role 구분 없이 함께 지운다 -
+		// App만 지우면 이 리셋이 내부적으로 어긋난 상태(admin 자격증명은 남고 그 CMK는 없음)를 만든다.
+		await db.AwsBootstrapCredentials.ExecuteDeleteAsync();
 	}
 
 	private static Task<bool> IsEnvironmentAvailableAsync() => TestEnvironment.IsPostgresAvailableAsync();
