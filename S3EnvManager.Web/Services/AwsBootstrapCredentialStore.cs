@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using S3EnvManager.Database;
@@ -7,7 +8,8 @@ using S3EnvManager.Sops;
 namespace S3EnvManager.Web.Services;
 
 public sealed class AwsBootstrapCredentialStore(
-	ApplicationDbContext db, IDataProtectionProvider dataProtectionProvider)
+	ApplicationDbContext db, IDataProtectionProvider dataProtectionProvider,
+	ILogger<AwsBootstrapCredentialStore> logger)
 	: IAwsBootstrapCredentialStore
 {
 	private readonly IDataProtector _protector =
@@ -50,8 +52,23 @@ public sealed class AwsBootstrapCredentialStore(
 			return null;
 		}
 
-		return (
-			_protector.Unprotect(entry.ProtectedAccessKeyId), _protector.Unprotect(entry.ProtectedSecretAccessKey));
+		// DataProtection 키링이 사라졌거나(볼륨 유실, DB만 복원) 이 행을 감쌌던 키가 폐기되면
+		// Unprotect가 실패한다. 그대로 던지면 이 메서드를 기동 경로에서 부르는 Program.cs가
+		// 호스트째로 죽어 재설정할 화면조차 못 띄운다 - "자격증명 미설정"으로 내려앉혀
+		// /settings/bootstrap에서 다시 등록할 수 있게 한다(SaveAsync가 이 행을 덮어쓴다).
+		try
+		{
+			return (
+				_protector.Unprotect(entry.ProtectedAccessKeyId),
+				_protector.Unprotect(entry.ProtectedSecretAccessKey));
+		}
+		catch (CryptographicException ex)
+		{
+			logger.LogError(ex,
+				"{Role} 부트스트랩 자격증명을 복호화하지 못했습니다(DataProtection 키링 유실/폐기 의심) - " +
+				"미설정 상태로 계속 진행합니다. /settings/bootstrap에서 자격증명을 다시 등록하세요.", role);
+			return null;
+		}
 	}
 
 	public async Task ClearAsync(CmkRole role, CancellationToken cancellationToken = default)

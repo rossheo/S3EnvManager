@@ -32,7 +32,8 @@ public class AwsAutoProvisioningServiceTests
 		var kmsAdmin = new FakeKmsKeyAdministration();
 		var appIdentity = new FakeBootstrapAppIdentityProvisioner();
 		var credentialStore = new AwsBootstrapCredentialStore(
-			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
+			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance);
 		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext());
 		var auditLogger = new AuditLogger(CreateDbContext());
 		var registryService = new CmkRegistryService(
@@ -113,7 +114,8 @@ public class AwsAutoProvisioningServiceTests
 		var kmsAdmin = new FakeKmsKeyAdministration();
 		var appIdentity = new FakeBootstrapAppIdentityProvisioner();
 		var credentialStore = new AwsBootstrapCredentialStore(
-			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
+			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance);
 		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext());
 		var auditLogger = new AuditLogger(CreateDbContext());
 		var registryService = new CmkRegistryService(

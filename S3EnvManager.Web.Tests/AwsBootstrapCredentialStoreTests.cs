@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using S3EnvManager.Database;
 using S3EnvManager.Sops;
 using S3EnvManager.Web.Services;
@@ -16,7 +17,12 @@ public class AwsBootstrapCredentialStoreTests
 			.Options);
 
 	private static IAwsBootstrapCredentialStore CreateStore(ApplicationDbContext db) =>
-		new AwsBootstrapCredentialStore(db, new EphemeralDataProtectionProvider());
+		CreateStore(db, new EphemeralDataProtectionProvider());
+
+	private static IAwsBootstrapCredentialStore CreateStore(
+		ApplicationDbContext db, IDataProtectionProvider dataProtectionProvider) =>
+		new AwsBootstrapCredentialStore(
+			db, dataProtectionProvider, NullLogger<AwsBootstrapCredentialStore>.Instance);
 
 	[Fact]
 	public async Task SaveAndGet_RoundTrips_PerRole()
@@ -63,6 +69,25 @@ public class AwsBootstrapCredentialStoreTests
 		await store.ClearAsync(CmkRole.App);
 
 		Assert.Null(await store.GetAsync(CmkRole.App));
+	}
+
+	// 키링이 사라진 상태로 기동하면 Unprotect가 CryptographicException을 던진다. 예전에는 그게
+	// 그대로 Program.cs 기동 경로로 올라가 호스트가 죽어, 자격증명을 다시 등록할 화면조차 뜨지
+	// 않았다 - "미설정"으로 내려앉아야 복구가 가능하다.
+	[Fact]
+	public async Task Get_WhenProtectionKeyIsGone_ReturnsNull_InsteadOfThrowing()
+	{
+		var db = CreateDbContext();
+		await CreateStore(db, new EphemeralDataProtectionProvider())
+			.SaveAsync(CmkRole.Admin, "AKIAADMIN", "admin-secret");
+
+		// 다른 키링을 가진 provider = 원래 키가 사라진 상황.
+		var storeWithLostKeyRing = CreateStore(db, new EphemeralDataProtectionProvider());
+
+		Assert.Null(await storeWithLostKeyRing.GetAsync(CmkRole.Admin));
+
+		// 행 자체는 남겨둔다 - 키링을 되살릴 여지를 없애지 않기 위함이고, 재등록은 SaveAsync가 덮어쓴다.
+		Assert.True(await db.AwsBootstrapCredentials.AnyAsync(c => c.Role == CmkRole.Admin));
 	}
 
 	[Fact]
