@@ -240,29 +240,47 @@ using (var scope = app.Services.CreateScope())
 
 	// AutoProvisioningSelfHeal이 켜져 있고 admin 자격증명이 있으면 부트스트랩 리소스를 재확인한다.
 	// 기본은 꺼져 있고, 실패해도 기동을 막지 않는다.
-	var featureSwitchService = scope.ServiceProvider.GetRequiredService<IFeatureSwitchService>();
-	if (adminCredentialOverride.IsSet &&
-		await featureSwitchService.IsEnabledAsync(
-			S3EnvManager.Database.Models.FeatureSwitchKeys.AutoProvisioningSelfHeal))
+	//
+	// IsEnabledAsync 자체도 try 안에 둔다 - 조건식에 두면 그 호출이 실패했을 때 "실패해도 기동을
+	// 막지 않는다"는 이 가드가 자기 조건식은 못 지켜 호스트가 죽는다.
+	try
 	{
-		try
+		var featureSwitchService = scope.ServiceProvider.GetRequiredService<IFeatureSwitchService>();
+		if (adminCredentialOverride.IsSet &&
+			await featureSwitchService.IsEnabledAsync(
+				S3EnvManager.Database.Models.FeatureSwitchKeys.AutoProvisioningSelfHeal))
 		{
 			var autoProvisioningService = scope.ServiceProvider.GetRequiredService<IAwsAutoProvisioningService>();
 			await autoProvisioningService.EnsureProvisionedAsync(
 				new ProvisioningRequest(Bucket: "", Region: "", CreateBucketIfMissing: false),
 				actorUserId: null, includeBucketProvisioning: false);
 		}
-		catch (Exception ex)
-		{
-			app.Logger.LogWarning(ex,
-				"AutoProvisioningSelfHeal 기동 시 자동 재확인에 실패했습니다 - 다음 기동이나 /settings/bootstrap에서 수동으로 재시도할 수 있습니다.");
-		}
+	}
+	catch (Exception ex)
+	{
+		app.Logger.LogWarning(ex,
+			"AutoProvisioningSelfHeal 기동 시 자동 재확인에 실패했습니다 - 다음 기동이나 /settings/bootstrap에서 수동으로 재시도할 수 있습니다.");
 	}
 
 	// pg_dump 전용 읽기 전용 계정은 최초 설치 시에만 생성한다 - 이미 있으면 회전시키지 않는다
 	// (자동화가 같은 비밀번호를 계속 참조하므로).
-	var dbBackupAccountService = scope.ServiceProvider.GetRequiredService<IDbBackupAccountService>();
-	await dbBackupAccountService.EnsureAsync();
+	//
+	// 이 경로는 admin CMK로 KMS를 부른다(비밀번호를 암호화 저장하므로). KMS 접근 불가, CMK가
+	// AWS에서 비활성화/삭제, 자격증명 만료 중 하나만 걸려도 예외가 올라와 호스트가 죽었다 -
+	// 백업 계정 하나 때문에 앱 전체가 안 뜰 이유가 없고, 관리자가 화면에서 다시 만들 수 있다.
+	// catch를 서비스가 아니라 여기 둔다 - CreateOrRotateAsync는 관리자의 명시적 회전
+	// 요청(RotateNowAsync)과 공유하는 코드라, 그쪽에서는 실패가 화면에 그대로 보여야 한다.
+	try
+	{
+		var dbBackupAccountService = scope.ServiceProvider.GetRequiredService<IDbBackupAccountService>();
+		await dbBackupAccountService.EnsureAsync();
+	}
+	catch (Exception ex)
+	{
+		app.Logger.LogWarning(ex,
+			"pg_dump 전용 백업 계정 생성에 실패했습니다 - 기동은 계속합니다. " +
+			"/admin/db-backup-account에서 상태를 확인하고 다시 시도하세요.");
+	}
 }
 
 if (app.Environment.IsDevelopment())

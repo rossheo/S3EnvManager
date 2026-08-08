@@ -38,8 +38,15 @@ public static class DataProtectionCertificateStore
 
 		if (certificates.Count == 0)
 		{
+			// 여기서는 일부러 기동을 막는다 - 이 실패는 앱 안에서 고칠 수 없고(비밀번호는 DB 밖에
+			// 있다) 그냥 진행하면 위 Count == 0 분기가 새 인증서를 발급해 기존 DataProtection
+			// 키가 전부 복호화 불능이 된다. 대신 무엇을 고쳐야 하는지 메시지에 담는다.
 			throw new InvalidOperationException(
-				$"DataProtectionCertificates에 {rows.Count}개의 인증서 로우가 있지만 설정된 비밀번호로 하나도 열지 못했습니다.",
+				$"DataProtectionCertificates에 {rows.Count}개의 인증서 로우가 있지만 설정된 비밀번호로 하나도 열지 못했습니다. " +
+				"DataProtectionCertificate:Password(user-secrets의 Parameters:dataprotection-cert-password 또는 " +
+				"환경변수 DataProtectionCertificate__Password)가 이 인증서를 만들 때 쓴 값과 같은지 확인하세요. " +
+				"비밀번호를 잃어버렸다면 기존 로그인 세션을 버리고 DataProtectionCertificates/DataProtectionKeys를 " +
+				"비운 뒤 재기동해야 합니다.",
 				new AggregateException(failures));
 		}
 
