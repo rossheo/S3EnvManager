@@ -1,4 +1,6 @@
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using S3EnvManager.Sops;
 using S3EnvManager.Web.Services;
 using Xunit;
@@ -86,6 +88,52 @@ public class CachingKmsKeyOperationsTests
 		var secondWrap = await cached.EncryptAsync(AdminArn, firstKey, context);
 		Assert.Equal(2, inner.EncryptCalls);
 		Assert.NotEqual(firstWrap, secondWrap);
+	}
+
+	// 계측이 실제로 값을 내보내는지 확인한다 - 절감 조치의 효과를 숫자로 볼 수 없으면
+	// 이후 K1~K4는 검증이 불가능하다.
+	[Fact]
+	public async Task Metrics_CountAwsBoundCallsAndCacheOutcomes()
+	{
+		using var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
+		var metrics = new KmsMetrics(services.GetRequiredService<IMeterFactory>());
+		var cached = new CachingKmsKeyOperations(
+			new FakeKmsKeyOperations(), new MemoryCache(new MemoryCacheOptions()), metrics);
+
+		var recorded = new List<(string Instrument, string Tag, Int64 Value)>();
+		using var listener = new MeterListener();
+		listener.InstrumentPublished = (instrument, l) =>
+		{
+			if (instrument.Meter.Name == KmsMetrics.MeterName)
+			{
+				l.EnableMeasurementEvents(instrument);
+			}
+		};
+		listener.SetMeasurementEventCallback<Int64>((instrument, value, tags, _) =>
+		{
+			var tag = tags.Length > 0 ? tags[0].Value?.ToString() ?? "" : "";
+			lock (recorded)
+			{
+				recorded.Add((instrument.Name, tag, value));
+			}
+		});
+		listener.Start();
+
+		var context = Context("alpha");
+		var (key, blob) = await cached.GenerateDataKeyAsync(AdminArn, context);
+		await cached.EncryptAsync(AdminArn, key, context);
+		await cached.DecryptAsync(AdminArn, blob, context);   // miss
+		await cached.DecryptAsync(AdminArn, blob, context);   // hit
+
+		Int64 Total(string instrument, string tag) =>
+			recorded.Where(r => r.Instrument == instrument && r.Tag == tag).Sum(r => r.Value);
+
+		Assert.Equal(1, Total("s3envmanager.kms.calls", "generate_data_key"));
+		Assert.Equal(1, Total("s3envmanager.kms.calls", "encrypt"));
+		// 캐시 적중은 AWS까지 나가지 않으므로 decrypt 호출 수는 2가 아니라 1이어야 한다.
+		Assert.Equal(1, Total("s3envmanager.kms.calls", "decrypt"));
+		Assert.Equal(1, Total("s3envmanager.kms.decrypt_cache", "miss"));
+		Assert.Equal(1, Total("s3envmanager.kms.decrypt_cache", "hit"));
 	}
 
 	private sealed class CountingKmsKeyOperations(IKmsKeyOperations inner) : IKmsKeyOperations

@@ -27,6 +27,11 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddMemoryCache();
 
+// KMS 호출량 계측 - free tier 한도에 얼마나 근접했는지를 AWS 콘솔 밖에서 보기 위함.
+builder.Services.AddMetrics();
+builder.Services.AddSingleton<KmsMetrics>();
+builder.Services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(KmsMetrics.MeterName));
+
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
@@ -115,7 +120,7 @@ builder.Services.AddKeyedSingleton<IAmazonKeyManagementService>(CmkRole.App, (sp
 builder.Services.AddKeyedSingleton<IKmsKeyOperations>(CmkRole.App, (sp, _) =>
 	new CachingKmsKeyOperations(
 		new AwsKmsKeyOperations(sp.GetRequiredKeyedService<IAmazonKeyManagementService>(CmkRole.App)),
-		sp.GetRequiredService<IMemoryCache>()));
+		sp.GetRequiredService<IMemoryCache>(), sp.GetRequiredService<KmsMetrics>()));
 builder.Services.AddScoped<IAwsBootstrapCredentialStore, AwsBootstrapCredentialStore>();
 
 builder.Services.AddScoped<IKmsKeyAdministration, AwsKmsKeyAdministration>();
@@ -134,7 +139,7 @@ builder.Services.AddScoped<IAppRegistrationService, AppRegistrationService>();
 builder.Services.AddScoped<IKmsKeyOperations>(sp =>
 	new CachingKmsKeyOperations(
 		new AwsKmsKeyOperations(sp.GetRequiredService<IAmazonKeyManagementService>()),
-		sp.GetRequiredService<IMemoryCache>()));
+		sp.GetRequiredService<IMemoryCache>(), sp.GetRequiredService<KmsMetrics>()));
 builder.Services.AddScoped<ISecretObjectStore, S3SecretObjectStore>();
 builder.Services.AddScoped<ISecretBundleService, SecretBundleService>();
 builder.Services.AddSingleton<IDataKeyCache, DataKeyCache>();
