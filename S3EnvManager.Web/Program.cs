@@ -35,8 +35,13 @@ builder.Services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(KmsM
 // Decrypt 캐시는 공유 IMemoryCache가 아니라 전용 인스턴스를 쓴다 - SizeLimit이 걸린 캐시는
 // 모든 Set이 Size를 지정해야 해서, 공유 캐시에 걸면 그것을 쓰는 다른 코드(프레임워크 포함)의
 // Set이 전부 깨진다.
-builder.Services.AddKeyedSingleton<IMemoryCache>(CachingKmsKeyOperations.CacheServiceKey, (_, _) =>
+// 구체 타입(MemoryCache)으로도 같은 키에 등록해둔다 - DecryptCacheAdmin이 Clear()를 부르려면
+// IMemoryCache에는 없는 그 메서드가 필요하다.
+builder.Services.AddKeyedSingleton<MemoryCache>(CachingKmsKeyOperations.CacheServiceKey, (_, _) =>
 	new MemoryCache(new MemoryCacheOptions { SizeLimit = CachingKmsKeyOperations.DecryptCacheSizeLimit }));
+builder.Services.AddKeyedSingleton<IMemoryCache>(CachingKmsKeyOperations.CacheServiceKey, (sp, key) =>
+	sp.GetRequiredKeyedService<MemoryCache>(key));
+builder.Services.AddSingleton<IDecryptCacheAdmin, DecryptCacheAdmin>();
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();

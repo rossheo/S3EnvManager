@@ -12,6 +12,8 @@
 
 @inject ICmkRegistryService CmkRegistryService
 @inject IKmsKeyAdministration KmsKeyAdministration
+@inject IDecryptCacheAdmin DecryptCacheAdmin
+@inject IAuditLogger AuditLogger
 @inject IJSRuntime JsRuntime
 @inject ISnackbar Snackbar
 
@@ -108,6 +110,23 @@ else
 			</MudButton>
 		</MudPaper>
 	}
+
+	<MudPaper Class="pa-4 mb-4" MaxWidth="900px">
+		<MudText Typo="Typo.h6" Class="mb-2">Decrypt 캐시</MudText>
+		<MudText Typo="Typo.body2" Class="mb-3">
+			같은 ciphertext blob을 반복 Decrypt하는 호출을 최대 6시간까지 캐싱해 KMS 호출을 줄입니다.
+			CMK 비활성화·kms:Decrypt 회수 같은 사고 대응 직후에는, 그 반영이 캐시 TTL만큼 늦어질 수
+			있으니 여기서 즉시 비우세요.
+		</MudText>
+		<MudAlert Severity="Severity.Warning" Class="mb-3">
+			이 버튼은 Decrypt 캐시만 비웁니다 - 재사용 데이터 키 캐시(ReuseDataKeyOnSave, 최대 10분)와
+			평문 데이터 키 캐시(IDataKeyCache, 프로세스 수명 내내 무기한)는 그대로 남습니다.
+			평문을 완전히 끊어야 하는 사고라면 프로세스 재기동이 필요합니다.
+		</MudAlert>
+		<MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="ClearDecryptCacheAsync">
+			Decrypt 캐시 비우기
+		</MudButton>
+	</MudPaper>
 }
 
 @code {
@@ -223,6 +242,22 @@ else
 		{
 			Snackbar.Add($"제거에 실패했습니다: {ex.Message}", Severity.Error);
 		}
+	}
+
+	private async Task ClearDecryptCacheAsync()
+	{
+		var confirmed = await JsRuntime.InvokeAsync<bool>(
+			"confirm",
+			"Decrypt 캐시를 비울까요? 이후 첫 조회들은 다시 KMS를 호출하므로 일시적으로 호출량이 늘어납니다.");
+		if (!confirmed)
+		{
+			return;
+		}
+
+		DecryptCacheAdmin.Clear();
+		var actorUserId = await GetCurrentUserIdAsync();
+		await AuditLogger.LogAsync(AuditEventTypes.DecryptCacheCleared, actorUserId, appId: null, details: null);
+		Snackbar.Add("Decrypt 캐시를 비웠습니다.", Severity.Success);
 	}
 
 	private static string RoleLabel(CmkRole role) => CmkKeyPolicyNotes.RoleLabel(role);

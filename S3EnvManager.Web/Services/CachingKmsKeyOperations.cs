@@ -11,16 +11,19 @@ namespace S3EnvManager.Web.Services;
 public sealed class CachingKmsKeyOperations(
 	IKmsKeyOperations inner, IMemoryCache cache, KmsMetrics? metrics = null) : IKmsKeyOperations
 {
-	// 처음에는 5분이었는데 편집 세션 하나도 못 버티는 값이었다 - 화면에서 값을 확인하고 잠시 뒤
-	// 저장하면 이미 만료돼 Decrypt가 다시 나갔다. 30분이면 편집 세션 하나가 Decrypt 1회로 끝난다.
+	// 처음에는 5분 -> 30분(편집 세션 하나를 버티게) -> 6시간으로 올렸다. CMK 자체가 자주 바뀌지
+	// 않는다는 전제라 캐시 유효기간을 늘려도 "틀린 키를 계속 쓰는" 위험은 없다 - 이 TTL이 실제로
+	// 좌우하는 건 그게 아니라 아래 (2)다.
 	//
 	// 대가는 두 가지다. (1) 평문 데이터 키가 메모리에 더 오래 머문다 - 같은 프로세스의
 	// IDataKeyCache가 이미 프로세스 수명 내내 무기한으로 평문을 들고 있으므로 새로 생기는
 	// 노출은 아니다. (2) **KMS 쪽 권한 회수가 늦게 반영된다** - 사고 대응으로 CMK를 비활성화하거나
 	// kms:Decrypt 권한을 회수해도, 이미 캐시에 있는 ciphertext blob은 최대 이 시간만큼 계속
-	// 열린다(그동안 kms.calls에도 잡히지 않는다). 즉시 끊어야 하면 프로세스를 재기동해야 한다.
+	// 열린다(그동안 kms.calls에도 잡히지 않는다). TTL을 늘린 만큼 이 창이 커지므로, 사고 시
+	// 프로세스 재기동을 기다리지 않고 즉시 비울 수 있게 IDecryptCacheAdmin.Clear()를 관리자
+	// 화면(CMK 레지스트리)에 뒀다.
 	// 절대 만료를 쓴다(슬라이딩 아님) - 계속 쓰이는 키라도 노출 창은 상한이 있어야 한다.
-	public static readonly TimeSpan DecryptCacheDuration = TimeSpan.FromMinutes(30);
+	public static readonly TimeSpan DecryptCacheDuration = TimeSpan.FromHours(6);
 
 	// TTL을 늘리면 상주량도 함께 늘어난다. 엔트리 하나를 크기 1로 세어 "최대 엔트리 수"로 제한한다
 	// (전용 MemoryCache에만 SizeLimit이 걸려 있고, 여기 Set은 항상 Size를 지정한다).

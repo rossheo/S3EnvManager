@@ -110,13 +110,35 @@ public class CachingKmsKeyOperationsTests
 		Assert.Equal(1, inner.DecryptCalls);
 	}
 
-	// 편집 세션 하나를 버티지 못하던 5분에서 올린 값이다 - 회귀로 다시 줄어들면 잡는다.
+	// 편집 세션 하나를 버티지 못하던 5분에서 30분, 다시 6시간으로 올렸다 - 회귀로 다시 줄어들면 잡는다.
 	[Fact]
 	public void DecryptCacheDuration_IsLongEnoughForAnEditSession()
 	{
 		Assert.True(
-			CachingKmsKeyOperations.DecryptCacheDuration >= TimeSpan.FromMinutes(30),
+			CachingKmsKeyOperations.DecryptCacheDuration >= TimeSpan.FromHours(6),
 			$"TTL이 {CachingKmsKeyOperations.DecryptCacheDuration}로 줄었습니다 - 편집 세션 중 재-Decrypt가 발생합니다.");
+	}
+
+	// TTL이 6시간으로 늘어난 대가는 사고 대응(CMK 비활성화 등) 반영이 그만큼 늦어지는 것 - 이를
+	// 상쇄하는 DecryptCacheAdmin.Clear()가 실제로 캐시를 비우는지 확인한다.
+	[Fact]
+	public async Task DecryptCacheAdmin_Clear_ForcesNextDecryptBackToKms()
+	{
+		var inner = new CountingKmsKeyOperations(new FakeKmsKeyOperations());
+		var cache = new MemoryCache(new MemoryCacheOptions());
+		var cached = new CachingKmsKeyOperations(inner, cache);
+		var admin = new DecryptCacheAdmin(cache);
+
+		var context = Context("alpha");
+		var (_, blob) = await cached.GenerateDataKeyAsync(AdminArn, context);
+		await cached.DecryptAsync(AdminArn, blob, context);
+		await cached.DecryptAsync(AdminArn, blob, context);
+		Assert.Equal(1, inner.DecryptCalls);
+
+		admin.Clear();
+
+		await cached.DecryptAsync(AdminArn, blob, context);
+		Assert.Equal(2, inner.DecryptCalls);
 	}
 
 	// 계측이 실제로 값을 내보내는지 확인한다 - 절감 조치의 효과를 숫자로 볼 수 없으면

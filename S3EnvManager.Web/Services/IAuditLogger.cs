@@ -24,6 +24,7 @@ public static class AuditEventTypes
 	public const string CmkRemoved = "CmkRemoved";
 	public const string DataKeyRotated = "DataKeyRotated";
 	public const string DataKeyRotationIntervalChanged = "DataKeyRotationIntervalChanged";
+	public const string DecryptCacheCleared = "DecryptCacheCleared";
 	public const string DbBackupAccountRotated = "DbBackupAccountRotated";
 	public const string DbBackupAccountPasswordRevealed = "DbBackupAccountPasswordRevealed";
 	public const string FeatureSwitchChanged = "FeatureSwitchChanged";

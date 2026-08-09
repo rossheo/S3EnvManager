@@ -125,8 +125,13 @@ public static class SopsEnvelopeCodec
 	/// <see cref="DecryptWithDataKey(string,byte[])"/>와 같지만, 트레일러가 정확히 admin/app
 	/// 엔트리 2개를 예상한 ARN·비어있지 않은 ciphertext로 담고 있는지도 함께 확인한다. 저장 직후
 	/// 자체 검증에 쓴다 - "값은 맞지만 트레일러가 깨져서 아무도 다시 열 수 없는 번들"을 잡아내기
-	/// 위한 것으로, KMS Decrypt로 트레일러를 실제로 여는 대신 구조만 확인한다(트레일러의
-	/// ciphertext blob 자체는 이번 저장에서 막 KMS로 만든 것이라 신뢰할 수 있음).
+	/// 위한 것으로, KMS Decrypt로 트레일러를 실제로 여는 대신 구조만 확인한다.
+	///
+	/// ReuseDataKeyOnSave가 켜져 있으면 트레일러의 ciphertext blob이 "이번 저장에서 막 KMS로
+	/// 만든 것"이 아니라 최대 10분/50회 전에 만든 것을 재사용했을 수 있다 - 그래도 이 검증이
+	/// 성립하는 이유는 blob의 신선도가 아니라, 재사용 캐시 키가 EncryptAsync에 넘긴
+	/// (appName, adminArn, appArn)과 항상 같은 값이라 트레일러가 실제 wrap과 다른 context를
+	/// 주장할 수 없기 때문이다(구성상 보장, 이 함수가 매번 새로 확인하는 게 아님).
 	/// </summary>
 	public static Dictionary<string, string> DecryptWithDataKeyAndVerifyTrailer(
 		string fileContent, byte[] dataKey, string expectedAdminCmkArn, string expectedAppCmkArn)
