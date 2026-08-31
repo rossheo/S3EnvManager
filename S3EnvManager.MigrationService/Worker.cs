@@ -7,7 +7,9 @@ using S3EnvManager.Database;
 namespace S3EnvManager.MigrationService;
 
 // 마이그레이션 적용 + Identity 역할 자가 치유 후 종료(AppHost web이 WaitForCompletion으로 대기).
-// CMK 부트스트랩/backup-readonly self-heal은 KMS(AWS SDK) 의존이라 Web.Program.cs에 남겨둔다.
+// CMK 부트스트랩/backup-readonly 권한 재부여(self-heal)는 KMS(AWS SDK) 의존이라 Web.Program.cs에
+// 남겨둔다. backup-readonly는 매 Web 기동마다 EnsureAsync()가 GRANT를 재확인/재부여한다
+// (비밀번호는 최초 부트스트랩 때만 생성되고 회전은 RotateNowAsync로만 일어난다).
 public class Worker(
 	IServiceProvider serviceProvider,
 	IHostApplicationLifetime hostApplicationLifetime,

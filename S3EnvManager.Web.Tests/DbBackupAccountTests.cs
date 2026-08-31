@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using S3EnvManager.Database;
 using S3EnvManager.Database.Models;
@@ -28,8 +29,24 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()));
-		await service.EnsureAsync();
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
+			NullLogger<DbBackupAccountService>.Instance);
+
+		// 역할을 우선 존재시킨 뒤 시퀀스 권한을 명시적으로 걷어낸다 - 공유 DB에서 이전 실행이나
+		// 수동 GRANT가 남긴 권한 때문에 아래 검증이 "우연히" 통과하는 것을 막기 위한 결정적 셋업이다.
+		await service.RotateNowAsync();
+		await using (var revokeConn = new NpgsqlConnection(PostgresConnectionString))
+		{
+			await revokeConn.OpenAsync();
+			await using var revokeCmd = new NpgsqlCommand(
+				"REVOKE SELECT ON ALL SEQUENCES IN SCHEMA public FROM \"s3envmanager_backup_readonly\"",
+				revokeConn);
+			await revokeCmd.ExecuteNonQueryAsync();
+		}
+
+		// RotateNowAsync는 EnsureAsync와 달리 "이미 자격증명이 있으면 건너뛴다" 가드가 없어
+		// GRANT 블록이 매번 재실행된다 - 방금 걷어낸 시퀀스 권한이 여기서 재부여되어야 한다.
+		await service.RotateNowAsync();
 
 		var info = await service.GetCurrentAsync();
 		Assert.NotNull(info);
@@ -47,6 +64,15 @@ public class DbBackupAccountTests
 		{
 			var count = await selectCmd.ExecuteScalarAsync();
 			Assert.NotNull(count);
+		}
+
+		// identity 컬럼의 시퀀스는 테이블과 별도 오브젝트라 별도 GRANT가 필요하다 - pg_dump가
+		// 이걸 놓치면 "missing SELECT on ..._seq"로 실패한다.
+		await using (var seqCmd = new NpgsqlCommand(
+			"SELECT last_value FROM \"AspNetRoleClaims_Id_seq\"", readOnlyConnection))
+		{
+			var lastValue = await seqCmd.ExecuteScalarAsync();
+			Assert.NotNull(lastValue);
 		}
 
 		await using (var insertCmd = new NpgsqlCommand(
@@ -70,7 +96,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()));
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
+			NullLogger<DbBackupAccountService>.Instance);
 		await service.RotateNowAsync();
 		var info1 = await service.GetCurrentAsync();
 		var password1 = await service.RevealCurrentPasswordAsync();
@@ -122,7 +149,8 @@ public class DbBackupAccountTests
 		}
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()));
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
+			NullLogger<DbBackupAccountService>.Instance);
 		await service.EnsureAsync();
 
 		var info = await service.GetCurrentAsync();
@@ -142,7 +170,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()));
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
+			NullLogger<DbBackupAccountService>.Instance);
 		await service.EnsureAsync();
 		var info1 = await service.GetCurrentAsync();
 		var password1 = await service.RevealCurrentPasswordAsync();
@@ -154,6 +183,56 @@ public class DbBackupAccountTests
 
 		Assert.Equal(info1!.RotatedAt, info2!.RotatedAt);
 		Assert.Equal(password1, password2);
+	}
+
+	[Fact]
+	public async Task EnsureAsync_ReappliesGrants_WhenPermissionsDriftedButCredentialAlreadyExists()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		await using var db = CreateDbContext();
+		var kms = new FakeKmsKeyOperations();
+		await EnsureActiveAdminCmkAsync(db);
+
+		var service = new DbBackupAccountService(
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
+			NullLogger<DbBackupAccountService>.Instance);
+		await service.EnsureAsync();
+		var infoBefore = await service.GetCurrentAsync();
+		var passwordBefore = await service.RevealCurrentPasswordAsync();
+
+		// 운영 중 수동 REVOKE나 스키마 변경으로 권한이 드리프트된 상황을 흉내낸다.
+		await using (var revokeConn = new NpgsqlConnection(PostgresConnectionString))
+		{
+			await revokeConn.OpenAsync();
+			await using var revokeCmd = new NpgsqlCommand(
+				"REVOKE SELECT ON ALL SEQUENCES IN SCHEMA public FROM \"s3envmanager_backup_readonly\"",
+				revokeConn);
+			await revokeCmd.ExecuteNonQueryAsync();
+		}
+
+		// 자격증명은 이미 있으므로(alreadyExists) 비밀번호는 건드리지 않되, GRANT는 재부여돼야 한다.
+		await service.EnsureAsync();
+		var infoAfter = await service.GetCurrentAsync();
+		var passwordAfter = await service.RevealCurrentPasswordAsync();
+
+		Assert.Equal(infoBefore!.RotatedAt, infoAfter!.RotatedAt);
+		Assert.Equal(passwordBefore, passwordAfter);
+
+		var builder = new NpgsqlConnectionStringBuilder(PostgresConnectionString)
+		{
+			Username = infoAfter.Username,
+			Password = passwordAfter,
+		};
+		await using var readOnlyConnection = new NpgsqlConnection(builder.ConnectionString);
+		await readOnlyConnection.OpenAsync();
+		await using var seqCmd = new NpgsqlCommand(
+			"SELECT last_value FROM \"AspNetRoleClaims_Id_seq\"", readOnlyConnection);
+		var lastValue = await seqCmd.ExecuteScalarAsync();
+		Assert.NotNull(lastValue);
 	}
 
 	[Fact]
@@ -169,7 +248,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()));
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
+			NullLogger<DbBackupAccountService>.Instance);
 		await service.EnsureAsync();
 		var info = await service.GetCurrentAsync();
 
