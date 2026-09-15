@@ -17,6 +17,9 @@ public sealed class CmkRegistryService(
 	private static readonly IReadOnlyDictionary<string, string> NoContext = new Dictionary<string, string>();
 	private static readonly SecretBundleKind[] AllKinds = [SecretBundleKind.Base, SecretBundleKind.Overwrite];
 
+	// 대기기간을 두는 건 CancelKeyDeletion으로 되돌릴 여지를 남기기 위해서다(AWS 최소값).
+	private const Int32 KeyDeletionPendingWindowDays = 7;
+
 	public Task<List<CmkRegistration>> ListAsync(CancellationToken cancellationToken = default) =>
 		db.CmkRegistrations.AsNoTracking()
 			.OrderBy(c => c.Role).ThenBy(c => c.CreatedAt)
@@ -255,9 +258,17 @@ public sealed class CmkRegistryService(
 				$"재래핑 후에도 이 CMK를 참조하는 대상이 {remainingDependents}개 남아 있어 제거를 중단했습니다. 다시 시도하세요.");
 		}
 
-		await RemoveRegistrationAsync(target, actorUserId,
-			new { role = "App", removedArn = target.Arn, rewrappedInto = activeAppCmk.Arn },
-			cancellationToken).ConfigureAwait(false);
+		// noncurrent 버전의 app 엔트리는 손대지 않는다 - admin 엔트리가 감싼 데이터 키는 그대로이므로
+		// (RewrapEntryIfWrappedByAsync가 증명하듯 두 엔트리는 같은 데이터 키를 감싼다) admin은 언제든
+		// 이 버전을 복호화할 수 있고, RestoreVersionAsync의 유일한 실사용처(SecretBundleService의
+		// 저장 검증 실패 복구)는 방금 막 지나간 버전으로만 되돌리므로 CMK 회전이 끼어들 수 없다 -
+		// 즉 죽은 app CMK를 가리키는 noncurrent 버전이 현재로 되살아날 경로가 없다.
+		await RemoveRegistrationAsync(target, actorUserId, new
+		{
+			role = "App",
+			removedArn = target.Arn,
+			rewrappedInto = activeAppCmk.Arn,
+		}, cancellationToken).ConfigureAwait(false);
 
 		await ReapplyAppRoleGrantsToAllAppsAsync(cancellationToken).ConfigureAwait(false);
 	}
@@ -390,6 +401,22 @@ public sealed class CmkRegistryService(
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 		}).ConfigureAwait(false);
+
+		// 레지스트리에서만 빼고 AWS 쪽 키를 그대로 두면 Enabled 상태로 계속 월 과금된다 - 여기서
+		// 삭제를 예약한다. DB 트랜잭션이 이미 커밋된 뒤라 실패해도 재시도 단위(NpgsqlRetryingExecutionStrategy)
+		// 밖이므로 중복 호출 걱정은 없지만, 반대로 실패를 삼키면 이번에 고치려는 것과 같은 고아 키가
+		// 다시 생기므로 예외를 그대로 올려 관리자가 알 수 있게 한다.
+		try
+		{
+			await kmsKeyAdministration.ScheduleDeletionAsync(
+				target.Arn, KeyDeletionPendingWindowDays, cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			throw new InvalidOperationException(
+				$"레지스트리에서는 제거됐지만 AWS KMS 키 삭제 예약에는 실패했습니다({ex.Message}). " +
+				$"AWS 콘솔에서 이 키를 직접 정리하세요: {target.Arn}", ex);
+		}
 	}
 
 	// entryIndex(0=admin, 1=app) 엔트리만 재래핑한다 - 암호화된 값/다른 엔트리/MAC은 건드리지 않는다.

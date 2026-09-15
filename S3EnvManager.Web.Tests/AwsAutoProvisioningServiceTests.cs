@@ -167,6 +167,68 @@ public class AwsAutoProvisioningServiceTests
 		Assert.True(accessKeyStep.Status != ProvisioningStepStatus.Failed, accessKeyStep.Detail);
 	}
 
+	/// <summary>회귀 방지: CMK 레지스트리에서 제거된 CMK는 이제 AWS에서도 삭제 예약된다
+	/// (kmsAdmin.ScheduleDeletionAsync). 그런데 별칭은 그 죽은 키를 계속 가리키고 있을 수 있다
+	/// - DescribeKey는 Disabled/PendingDeletion 키에도 성공하므로, 별칭 조회가 KeyState를 보지
+	/// 않으면 재프로비저닝이 죽은 키를 "이미 있음"으로 오인해 되살리려다 실패하거나, 별칭 없는
+	/// 새 키를 계속 만들어내는 무한 루프가 된다(EnsureAliasAsync의 CreateAlias가
+	/// AlreadyExistsException으로 조용히 삼켜지므로).</summary>
+	[Fact]
+	public async Task EnsureProvisionedAsync_AliasPointsAtDeletedKey_CreatesReplacementAndRepointsAlias()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		await ResetSharedProvisioningStateAsync();
+
+		var kmsAdmin = new FakeKmsKeyAdministration();
+		var appIdentity = new FakeBootstrapAppIdentityProvisioner();
+		var credentialStore = new AwsBootstrapCredentialStore(
+			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance);
+		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext());
+		var auditLogger = new AuditLogger(CreateDbContext());
+		var registryService = new CmkRegistryService(
+			CreateDbContext(), auditLogger, new FakeAppCredentialProvisioner(), new FakeSecretObjectStore(),
+			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin);
+		var bucketSelfHeal = new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger);
+
+		// 과거에 정상적으로 프로비저닝됐다가 레지스트리에서 제거되고 AWS에서도 삭제 예약된 app-facing
+		// CMK를 재현한다 - 별칭은 그 죽은 키를 계속 가리킨다(CmkRegistryService는 별칭을 정리하지 않는다).
+		const string appFacingAlias = KmsAliasConventions.ManagedAliasPrefix + "-app";
+		var deadArn = await kmsAdmin.CreateKeyAsync("옛 app-facing CMK", KmsAliasConventions.ManagedTag);
+		await kmsAdmin.EnsureAliasAsync(appFacingAlias, deadArn);
+		await kmsAdmin.ScheduleDeletionAsync(deadArn, 7);
+
+		var service = new AwsAutoProvisioningService(
+			new FakeSecurityTokenService(), kmsAdmin, appIdentity, registryService, credentialStore,
+			new RuntimeAwsCredentialsOverride(), new RuntimeAwsCredentialsOverride(),
+			primaryStorageSettingsStore, new RuntimePrimaryStorageOverride(),
+			bucketSelfHeal, new BucketHealthStatusStore(), auditLogger);
+
+		var request = new ProvisioningRequest(Bucket: "", Region: "", CreateBucketIfMissing: false);
+		var report = await service.EnsureProvisionedAsync(request, includeBucketProvisioning: false);
+
+		var appFacingStep = report.Steps.Single(s => s.Name.Contains("app-facing"));
+		Assert.Equal(ProvisioningStepStatus.Done, appFacingStep.Status);
+		Assert.NotEqual(deadArn, appFacingStep.Detail);
+
+		var appRegistration = Assert.Single(await registryService.ListAsync(), r => r.Role == CmkRole.App);
+		Assert.NotEqual(deadArn, appRegistration.Arn);
+
+		// 별칭이 새 키로 옮겨 붙었는지가 핵심 - 그래야 다음 재실행이 이 죽은 키를 다시 마주치지 않는다.
+		var resolvedAfterRepoint = await kmsAdmin.FindKeyArnByAliasAsync(appFacingAlias);
+		Assert.Equal(appRegistration.Arn, resolvedAfterRepoint);
+
+		// 재실행하면 이제는 레지스트리의 활성 CMK를 그대로 승계해야 한다(중복 생성 없음).
+		var secondReport = await service.EnsureProvisionedAsync(request, includeBucketProvisioning: false);
+		var secondAppFacingStep = secondReport.Steps.Single(s => s.Name.Contains("app-facing"));
+		Assert.Equal(ProvisioningStepStatus.AlreadyProvisioned, secondAppFacingStep.Status);
+		Assert.Contains(appRegistration.Arn, secondAppFacingStep.Detail);
+	}
+
 	/// <summary>DataProtection 키링을 잃으면 저장된 app 자격증명을 못 읽는다. 그걸 "아직 발급
 	/// 안 됨"으로 읽고 새로 발급하면 AWS의 Access Key 슬롯(최대 2개) 하나를 태우고 기존 키는
 	/// 주인 없이 남는다 - 자가 치유가 반복되면 다음 회차는 LimitExceededException으로 막힌다.</summary>

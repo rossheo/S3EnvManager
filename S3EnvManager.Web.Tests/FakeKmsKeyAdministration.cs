@@ -17,11 +17,22 @@ public sealed class FakeKmsKeyAdministration : IKmsKeyAdministration
 
 	private readonly Dictionary<string, string> aliasToArn = [];
 	private readonly Dictionary<string, KeyRecord> keys = [];
+	private readonly HashSet<string> deletionScheduledArns = [];
 
 	public IReadOnlyDictionary<string, KeyRecord> Keys => keys;
 
-	public Task<string?> FindKeyArnByAliasAsync(string alias, CancellationToken cancellationToken = default) =>
-		Task.FromResult(aliasToArn.TryGetValue(alias, out var arn) ? arn : null);
+	public IReadOnlySet<string> DeletionScheduledArns => deletionScheduledArns;
+
+	// 실 KMS의 DescribeKey는 Disabled/PendingDeletion 키에도 성공하므로(AwsKmsKeyAdministration의
+	// KeyState 가드가 실제로 지키는 게 이거다), 삭제 예약된 ARN을 "Enabled 아님"으로 재현한다.
+	public Task<string?> FindKeyArnByAliasAsync(string alias, CancellationToken cancellationToken = default)
+	{
+		if (!aliasToArn.TryGetValue(alias, out var arn) || deletionScheduledArns.Contains(arn))
+		{
+			return Task.FromResult<string?>(null);
+		}
+		return Task.FromResult<string?>(arn);
+	}
 
 	public Task<string> CreateKeyAsync(
 		string description, IReadOnlyDictionary<string, string> tags, CancellationToken cancellationToken = default)
@@ -39,7 +50,9 @@ public sealed class FakeKmsKeyAdministration : IKmsKeyAdministration
 
 	public Task EnsureAliasAsync(string alias, string keyArn, CancellationToken cancellationToken = default)
 	{
-		if (!aliasToArn.ContainsKey(alias))
+		// AwsKmsKeyAdministration과 동일하게: 별칭이 없으면 새로 걸고, 이미 있으면 가리키는 키가
+		// 더 이상 Enabled가 아닐 때만(죽은 키) 방금 만든 키로 옮겨 붙인다.
+		if (!aliasToArn.TryGetValue(alias, out var current) || deletionScheduledArns.Contains(current))
 		{
 			aliasToArn[alias] = keyArn;
 		}
@@ -71,6 +84,13 @@ public sealed class FakeKmsKeyAdministration : IKmsKeyAdministration
 		{
 			record.Tags[key] = value;
 		}
+		return Task.CompletedTask;
+	}
+
+	public Task ScheduleDeletionAsync(
+		string keyArn, Int32 pendingWindowInDays, CancellationToken cancellationToken = default)
+	{
+		deletionScheduledArns.Add(keyArn);
 		return Task.CompletedTask;
 	}
 }

@@ -17,7 +17,12 @@ public interface ISecretObjectStore
 		string bucket, string key, string content, string? actorEmail = null,
 		CancellationToken cancellationToken = default);
 
-	// 저장 검증 실패 시 직전 버전을 현재 버전 위에 그대로 복원한다(재암호화 없이 CopyObject).
+	// 저장 검증 실패 시 직전 버전을 현재 버전 위에 그대로 복원한다(재암호화 없이 CopyObject) - 지금
+	// 유일한 호출자(SecretBundleService.SaveAsync)는 같은 요청 안에서 방금 전 버전으로만 되돌리므로
+	// CMK 회전이 끼어들 수 없어 안전하다. 나중에 "임의의 과거 버전으로 롤백" 기능을 추가한다면,
+	// versionId가 감싼 CMK가 그사이 레지스트리에서 제거/삭제됐을 수 있다는 걸 고려해야 한다 - 바이트를
+	// 그대로 복사하면 그 옛 CMK 참조가 그대로 현재 버전이 되어, admin 엔트리로 값을 복호화한 뒤 현재
+	// 활성 CMK로 재래핑(재저장)하는 것과는 다른 함정에 빠질 수 있다.
 	Task RestoreVersionAsync(
 		string bucket, string key, string versionId, CancellationToken cancellationToken = default);
 

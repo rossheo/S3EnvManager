@@ -219,12 +219,15 @@ else
 			costLine = $"\n\n예상 KMS 호출 수를 계산하지 못했습니다({ex.Message}).";
 		}
 
+		const string awsKeyDeletionNote =
+			" 레지스트리에서 뺀 뒤에는 AWS KMS 키 자체도 7일 대기 후 삭제되도록 예약됩니다" +
+			"(그 안에는 AWS 콘솔에서 취소 가능).";
 		var confirmMessage = registration.Role == CmkRole.Admin
 			? $"이 CMK를 제거할까요? 현재 버전은 활성 CMK로 재래핑되지만, 이 CMK로 감싼 이전 버전(noncurrent)은 " +
-			  "영구히 삭제됩니다 - 그 버전으로의 롤백이 다시는 불가능해집니다. 되돌릴 수 없습니다.\n" +
+			  "영구히 삭제됩니다 - 그 버전으로의 롤백이 다시는 불가능해집니다. 되돌릴 수 없습니다." + awsKeyDeletionNote + "\n" +
 			  registration.Arn + costLine
-			: $"이 CMK를 제거할까요? 이 CMK로 감싼 시크릿은 현재 활성 CMK로 자동 재래핑됩니다.\n{registration.Arn}"
-			  + costLine;
+			: $"이 CMK를 제거할까요? 이 CMK로 감싼 시크릿은 현재 활성 CMK로 자동 재래핑됩니다." + awsKeyDeletionNote +
+			  $"\n{registration.Arn}" + costLine;
 		var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", confirmMessage);
 		if (!confirmed)
 		{

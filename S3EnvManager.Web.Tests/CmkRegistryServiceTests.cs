@@ -175,10 +175,11 @@ public class CmkRegistryServiceTests
 		var provisioner = new FakeAppCredentialProvisioner();
 		var store = new FakeSecretObjectStore();
 		var kms = new FakeKmsKeyOperations();
+		var kmsAdmin = new FakeKmsKeyAdministration();
 		var registryService = new CmkRegistryService(
 			CreateDbContext(), new AuditLogger(CreateDbContext()), provisioner, store, kms,
 			new FakeBootstrapAppIdentityProvisioner(), new PrimaryStorageSettingsStore(CreateDbContext()),
-			new FakeKmsKeyAdministration());
+			kmsAdmin);
 
 		var adminArn = NewFakeArn();
 		var appArnA = NewFakeArn();
@@ -251,6 +252,10 @@ public class CmkRegistryServiceTests
 		var removedLog = await verifyDb.AuditLogs
 			.SingleAsync(a => a.EventType == AuditEventTypes.CmkRemoved && a.Details!.Contains(appArnA));
 		Assert.Contains(appArnB, removedLog.Details);
+
+		// 레지스트리에서만 빼고 AWS 키를 그대로 두면 계속 과금된다 - 삭제 예약까지 됐는지 확인한다.
+		Assert.Contains(appArnA, kmsAdmin.DeletionScheduledArns);
+		Assert.DoesNotContain(appArnB, kmsAdmin.DeletionScheduledArns);
 	}
 
 	[Fact]
@@ -268,10 +273,11 @@ public class CmkRegistryServiceTests
 		var provisioner = new FakeAppCredentialProvisioner();
 		var store = new FakeSecretObjectStore();
 		var kms = new FakeKmsKeyOperations();
+		var kmsAdmin = new FakeKmsKeyAdministration();
 		var registryService = new CmkRegistryService(
 			CreateDbContext(), new AuditLogger(CreateDbContext()), provisioner, store, kms,
 			new FakeBootstrapAppIdentityProvisioner(), new PrimaryStorageSettingsStore(CreateDbContext()),
-			new FakeKmsKeyAdministration());
+			kmsAdmin);
 
 		var adminArnA = NewFakeArn();
 		var registrationA = new CmkRegistration
@@ -386,6 +392,10 @@ public class CmkRegistryServiceTests
 			.SingleAsync(a => a.EventType == AuditEventTypes.CmkRemoved && a.Details!.Contains(adminArnA));
 		Assert.Contains(adminArnB, removedLog.Details);
 		Assert.Contains("deletedNoncurrentVersions", removedLog.Details);
+
+		// 레지스트리에서만 빼고 AWS 키를 그대로 두면 계속 과금된다 - 삭제 예약까지 됐는지 확인한다.
+		Assert.Contains(adminArnA, kmsAdmin.DeletionScheduledArns);
+		Assert.DoesNotContain(adminArnB, kmsAdmin.DeletionScheduledArns);
 	}
 
 	[Fact]
