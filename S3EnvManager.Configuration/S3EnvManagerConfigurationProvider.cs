@@ -20,6 +20,9 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 	private readonly string _localCachePath;
 
 	private string? _lastETag;
+	// 오브젝트 부재를 이미 인지한 상태 - 아직 안 만든 overwrite 번들처럼 정상적인 부재를
+	// 폴링 주기마다 경고하지 않기 위해 둔다. 원격 로드에 성공하면 다시 false.
+	private bool _missingAcknowledged;
 	private CancellationTokenSource? _pollingCts;
 	private Task? _pollingTask;
 
@@ -103,6 +106,7 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 			}
 			SetData(new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase));
 			_lastETag = null;
+			_missingAcknowledged = true;
 			return;
 		}
 
@@ -113,6 +117,7 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 
 			await ApplyEncryptedContentAsync(encryptedContent, cancellationToken).ConfigureAwait(false);
 			_lastETag = response.ETag?.Trim('"');
+			_missingAcknowledged = false;
 			await WriteLocalCacheAsync(encryptedContent, cancellationToken).ConfigureAwait(false);
 		}
 	}
@@ -172,8 +177,15 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 			}
 			catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
 			{
-				// 폴링 중 오브젝트가 사라진 경우(드묾) - 다음 폴링에서 재확인, 마지막 값 유지.
-				ReportDiagnostic(S3EnvManagerLogLevel.Warning, $"'{_objectKey}'를 찾을 수 없습니다. 마지막으로 성공한 값을 유지합니다.", ex);
+				// 처음부터 없던 오브젝트(예: 안 만든 overwrite 번들)는 정상 상태라 조용히 넘긴다.
+				// 폴링 중 사라진 경우(드묾)만 한 번 경고하고 마지막 값을 유지한다 - 404 스택
+				// 트레이스는 정보가 없어 싣지 않는다.
+				if (!_missingAcknowledged)
+				{
+					_missingAcknowledged = true;
+					ReportDiagnostic(S3EnvManagerLogLevel.Warning,
+						$"'{_objectKey}'를 찾을 수 없습니다. 마지막으로 성공한 값을 유지합니다.", null);
+				}
 			}
 			catch (Exception ex) when (IsForbidden(ex))
 			{
