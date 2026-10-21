@@ -25,6 +25,7 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 	private bool _missingAcknowledged;
 	private CancellationTokenSource? _pollingCts;
 	private Task? _pollingTask;
+	private bool _disposed;
 
 	public S3EnvManagerConfigurationProvider(S3EnvManagerConfigurationOptions options)
 	{
@@ -145,6 +146,13 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 
 	private void StartPolling()
 	{
+		// IConfigurationRoot.Reload()는 Load()를 다시 부르므로, 이미 돌고 있는 루프가 있으면
+		// 새로 만들지 않는다 - 덮어쓰면 이전 루프는 취소할 수단을 잃고 계속 돈다.
+		if (_pollingTask is not null)
+		{
+			return;
+		}
+
 		_pollingCts = new CancellationTokenSource();
 		_pollingTask = Task.Run(() => PollLoopAsync(_pollingCts.Token));
 	}
@@ -175,6 +183,12 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 				await LoadFromRemoteAsync(cancellationToken).ConfigureAwait(false);
 				OnReload();
 			}
+			catch (Exception) when (cancellationToken.IsCancellationRequested)
+			{
+				// Dispose 중 진행 중이던 호출이 OperationCanceledException이 아닌 형태로 끊겨도
+				// 일시적 오류로 보고하지 않고 조용히 끝낸다.
+				return;
+			}
 			catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
 			{
 				// 처음부터 없던 오브젝트(예: 안 만든 overwrite 번들)는 정상 상태라 조용히 넘긴다.
@@ -191,10 +205,6 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 			{
 				ReportDiagnostic(S3EnvManagerLogLevel.Error,
 					$"'{_objectKey}' 접근이 거부되었습니다(403) - 자격증명이 폐기/로테이션되었을 수 있습니다. 재발급이 필요합니다.", ex);
-			}
-			catch (OperationCanceledException)
-			{
-				return;
 			}
 			catch (Exception ex)
 			{
@@ -252,7 +262,28 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 
 	public void Dispose()
 	{
+		if (_disposed)
+		{
+			return;
+		}
+		_disposed = true;
+
 		_pollingCts?.Cancel();
+		// 진행 중인 폴링이 아직 S3/KMS 클라이언트를 쓰고 있을 수 있으므로 루프가 끝난 뒤에
+		// 정리한다 - 먼저 dispose하면 ObjectDisposedException이 일시적 오류 경고로 보고된다.
+		if (_pollingTask is null || _pollingTask.IsCompleted)
+		{
+			DisposeResources();
+		}
+		else
+		{
+			_pollingTask.ContinueWith(_ => DisposeResources(), CancellationToken.None,
+				TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+		}
+	}
+
+	private void DisposeResources()
+	{
 		_pollingCts?.Dispose();
 		_s3.Dispose();
 		_kmsClient.Dispose();
