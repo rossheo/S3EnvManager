@@ -171,9 +171,11 @@ public class SharedSecretServiceTests
 
 		var kms = new FakeKmsKeyOperations();
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), new FakeAppCredentialProvisioner(),
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new FakeAppCredentialProvisioner(),
 			new FakeSecretObjectStore(), kms, new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), new FakeKmsKeyAdministration(), TimeProvider.System);
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+			new FakeKmsKeyAdministration(), TimeProvider.System);
 
 		var adminArnA = NewFakeArn();
 		await using (var db = CreateDbContext())
@@ -210,10 +212,13 @@ public class SharedSecretServiceTests
 	}
 
 	private static SharedSecretService CreateService(FakeKmsKeyOperations kms) =>
-		new(CreateDbContext(), new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache(), TimeProvider.System),
+		new(
+			CreateDbContext(),
+			new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache(), TimeProvider.System),
 			new AuditLogger(CreateDbContext(), TimeProvider.System),
 			new SecretBundleService(
-				CreateDbContext(), new FakeSecretObjectStore(), kms, kms, new AuditLogger(CreateDbContext(), TimeProvider.System),
+				CreateDbContext(), new FakeSecretObjectStore(), kms, kms,
+				new AuditLogger(CreateDbContext(), TimeProvider.System),
 				new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System),
 			TimeProvider.System);
 

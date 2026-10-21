@@ -64,14 +64,18 @@
 							<MudPaper Class="pa-4" Elevation="0" Outlined="true">
 								<MudText Typo="Typo.subtitle2">버킷 상태</MudText>
 								<MudText Typo="Typo.h4">@_healthyBucketCount / @_bucketCount</MudText>
-								<MudText Typo="Typo.caption">정상 / 전체 (버저닝·PAB·Object Ownership·Lifecycle 기준)</MudText>
+								<MudText Typo="Typo.caption">
+									정상 / 전체 (버저닝·PAB·Object Ownership·Lifecycle 기준)
+								</MudText>
 							</MudPaper>
 						</MudItem>
 						<MudItem xs="12" sm="4">
 							<MudPaper Class="pa-4" Elevation="0" Outlined="true">
 								<MudText Typo="Typo.subtitle2">사용자</MudText>
 								<MudText Typo="Typo.h4">@_userCount</MudText>
-								<MudText Typo="Typo.caption">관리자 @_administratorCount · 멤버 @_memberCount · 게스트 @_guestCount</MudText>
+								<MudText Typo="Typo.caption">
+									관리자 @_administratorCount · 멤버 @_memberCount · 게스트 @_guestCount
+								</MudText>
 							</MudPaper>
 						</MudItem>
 					</Authorized>
@@ -87,14 +91,17 @@
 					}
 					else
 					{
-						<MudTable Items="_recentAuditLogs" Hover="true" Elevation="0" Dense="true" Context="logRow">
+						<MudTable Items="_recentAuditLogs" Hover="true" Elevation="0" Dense="true"
+							Context="logRow">
 							<HeaderContent>
 								<MudTh>발생 시각</MudTh>
 								<MudTh>이벤트</MudTh>
 								<MudTh>행위자</MudTh>
 							</HeaderContent>
 							<RowTemplate Context="logRow">
-								<MudTd DataLabel="발생 시각">@logRow.OccurredAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+								<MudTd DataLabel="발생 시각">
+									@logRow.OccurredAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+								</MudTd>
 								<MudTd DataLabel="이벤트">@logRow.EventType</MudTd>
 								<MudTd DataLabel="행위자">@(logRow.ActorEmail ?? "(시스템)")</MudTd>
 							</RowTemplate>
@@ -152,17 +159,21 @@
 		var reports = BucketHealthStatusStore.GetAll();
 		_bucketCount = reports.Count;
 		_healthyBucketCount = reports.Count(r =>
-			r.VersioningEnabled && r.PublicAccessBlocked && r.ObjectOwnershipEnforced && r.LifecycleRuleConfigured);
+			r.VersioningEnabled && r.PublicAccessBlocked
+			&& r.ObjectOwnershipEnforced && r.LifecycleRuleConfigured);
 
 		if (isAdministrator)
 		{
 			var registrations = await CmkRegistryService.ListAsync();
-			var hasActiveAdminCmk = registrations.Any(r => r.Role == CmkRole.Admin && r.Status == CmkStatus.Active);
-			var hasActiveAppCmk = registrations.Any(r => r.Role == CmkRole.App && r.Status == CmkStatus.Active);
+			var hasActiveAdminCmk = registrations.Any(
+				r => r.Role == CmkRole.Admin && r.Status == CmkStatus.Active);
+			var hasActiveAppCmk = registrations.Any(
+				r => r.Role == CmkRole.App && r.Status == CmkStatus.Active);
 			_bootstrapIncomplete = !AdminCredentialOverride.IsSet || !hasActiveAdminCmk || !hasActiveAppCmk;
 
 			_userCount = await UserManager.Users.CountAsync();
-			_administratorCount = (await UserManager.GetUsersInRoleAsync(IdentityRoleNames.Administrator)).Count;
+			_administratorCount =
+				(await UserManager.GetUsersInRoleAsync(IdentityRoleNames.Administrator)).Count;
 			_memberCount = (await UserManager.GetUsersInRoleAsync(IdentityRoleNames.Member)).Count;
 			_guestCount = (await UserManager.GetUsersInRoleAsync(IdentityRoleNames.Guest)).Count;
 
@@ -170,7 +181,8 @@
 				.OrderByDescending(a => a.OccurredAt)
 				.Take(5)
 				.ToListAsync();
-			var actorIds = logs.Where(l => l.ActorUserId is not null).Select(l => l.ActorUserId!).Distinct().ToList();
+			var actorIds = logs.Where(l => l.ActorUserId is not null).Select(l => l.ActorUserId!)
+				.Distinct().ToList();
 			var actorEmails = await Db.Users.AsNoTracking()
 				.Where(u => actorIds.Contains(u.Id))
 				.ToDictionaryAsync(u => u.Id, u => u.Email);

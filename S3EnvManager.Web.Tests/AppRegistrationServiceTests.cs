@@ -32,7 +32,9 @@ public class AppRegistrationServiceTests
 	private static AppRegistrationService CreateService() =>
 		new(
 			CreateDbContext(),
-			new BucketSelfHealService(new FakeBucketComplianceOperations(), new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System),
+			new BucketSelfHealService(
+				new FakeBucketComplianceOperations(), new AuditLogger(CreateDbContext(), TimeProvider.System),
+				TimeProvider.System),
 			new BucketHealthStatusStore(),
 			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
 			new AuditLogger(CreateDbContext(), TimeProvider.System),

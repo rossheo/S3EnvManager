@@ -80,7 +80,8 @@ public static class DataKeyRotationService
 			var adminCmk = await db.CmkRegistrations.AsNoTracking()
 				.SingleAsync(c => c.Role == CmkRole.Admin && c.Status == CmkStatus.Active, cancellationToken)
 				.ConfigureAwait(false);
-			var (_, ciphertextBlob) = await kms.GenerateDataKeyAsync(adminCmk.Arn, NoContext, cancellationToken)
+			var (_, ciphertextBlob) = await kms.GenerateDataKeyAsync(
+				adminCmk.Arn, NoContext, cancellationToken)
 				.ConfigureAwait(false);
 
 			var generation = new DataKeyGeneration

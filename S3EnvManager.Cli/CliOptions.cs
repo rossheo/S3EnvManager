@@ -93,7 +93,8 @@ public sealed class CliOptions
 						"json" => OutputFormat.Json,
 						"dotenv" => OutputFormat.Dotenv,
 						_ => throw new CliException(
-							ExitCode.ArgumentError, $"알 수 없는 --format 값입니다: '{formatValue}' (json 또는 dotenv)."),
+							ExitCode.ArgumentError,
+							$"알 수 없는 --format 값입니다: '{formatValue}' (json 또는 dotenv)."),
 					};
 					break;
 				default:

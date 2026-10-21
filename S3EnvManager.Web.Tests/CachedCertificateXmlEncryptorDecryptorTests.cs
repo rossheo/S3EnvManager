@@ -12,7 +12,8 @@ namespace S3EnvManager.Web.Tests;
 /// k8s에서만 "No parameterless constructor defined"로 크래시가 나고 이 테스트는 계속 통과했다.</summary>
 public class CachedCertificateXmlEncryptorDecryptorTests
 {
-	private static IActivator CreateActivator(DataProtectionCertificateCache cache, out ServiceProvider provider)
+	private static IActivator CreateActivator(
+		DataProtectionCertificateCache cache, out ServiceProvider provider)
 	{
 		var services = new ServiceCollection();
 		services.AddSingleton(cache);
@@ -37,7 +38,8 @@ public class CachedCertificateXmlEncryptorDecryptorTests
 
 		Assert.Equal(typeof(CachedCertificateXmlDecryptor), encrypted.DecryptorType);
 
-		var decryptor = (IXmlDecryptor)activator.CreateInstance(typeof(IXmlDecryptor), encrypted.DecryptorType.AssemblyQualifiedName!);
+		var decryptor = (IXmlDecryptor)activator.CreateInstance(
+			typeof(IXmlDecryptor), encrypted.DecryptorType.AssemblyQualifiedName!);
 		var roundTrip = decryptor.Decrypt(encrypted.EncryptedElement);
 
 		Assert.Equal(plaintext.ToString(), roundTrip.ToString());
@@ -47,7 +49,8 @@ public class CachedCertificateXmlEncryptorDecryptorTests
 	public void Rotation_WithoutRebuildingServiceProvider_OldAndNewGenerationsBothDecrypt()
 	{
 		var cache = new DataProtectionCertificateCache();
-		var (gen1Cert, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(1, "pw1", TimeProvider.System);
+		var (gen1Cert, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(
+			1, "pw1", TimeProvider.System);
 		cache.ReplaceSnapshot([gen1Cert]);
 
 		var activator = CreateActivator(cache, out var provider);
@@ -57,14 +60,17 @@ public class CachedCertificateXmlEncryptorDecryptorTests
 		var gen1Plain = new XElement("secret", "generation-1");
 		var gen1Encrypted = encryptor.Encrypt(gen1Plain);
 
-		var (gen2Cert, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(1, "pw2", TimeProvider.System);
+		var (gen2Cert, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(
+			1, "pw2", TimeProvider.System);
 		cache.ReplaceSnapshot([gen2Cert, gen1Cert]);
 
 		var gen2Plain = new XElement("secret", "generation-2");
 		var gen2Encrypted = encryptor.Encrypt(gen2Plain);
 
-		var gen1Decryptor = (IXmlDecryptor)activator.CreateInstance(typeof(IXmlDecryptor), gen1Encrypted.DecryptorType.AssemblyQualifiedName!);
-		var gen2Decryptor = (IXmlDecryptor)activator.CreateInstance(typeof(IXmlDecryptor), gen2Encrypted.DecryptorType.AssemblyQualifiedName!);
+		var gen1Decryptor = (IXmlDecryptor)activator.CreateInstance(
+			typeof(IXmlDecryptor), gen1Encrypted.DecryptorType.AssemblyQualifiedName!);
+		var gen2Decryptor = (IXmlDecryptor)activator.CreateInstance(
+			typeof(IXmlDecryptor), gen2Encrypted.DecryptorType.AssemblyQualifiedName!);
 
 		Assert.Equal(gen1Plain.ToString(), gen1Decryptor.Decrypt(gen1Encrypted.EncryptedElement).ToString());
 		Assert.Equal(gen2Plain.ToString(), gen2Decryptor.Decrypt(gen2Encrypted.EncryptedElement).ToString());
@@ -81,7 +87,8 @@ public class CachedCertificateXmlEncryptorDecryptorTests
 		var encryptor = new CachedCertificateXmlEncryptor(CreateCacheWith(cert));
 		var encrypted = encryptor.Encrypt(new XElement("secret", "value"));
 
-		var decryptor = (IXmlDecryptor)activator.CreateInstance(typeof(IXmlDecryptor), encrypted.DecryptorType.AssemblyQualifiedName!);
+		var decryptor = (IXmlDecryptor)activator.CreateInstance(
+			typeof(IXmlDecryptor), encrypted.DecryptorType.AssemblyQualifiedName!);
 		Assert.Throws<InvalidOperationException>(() => decryptor.Decrypt(encrypted.EncryptedElement));
 	}
 

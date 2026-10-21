@@ -22,7 +22,8 @@ public class BundleFetcherTests
 	{
 		var kms = new FakeKmsKeyOperations();
 		var store = new FakeBundleObjectStore();
-		store.SetObject(BaseKey, await EncryptAsync(kms, new Dictionary<string, string> { ["FOO"] = "base-foo" }));
+		store.SetObject(
+			BaseKey, await EncryptAsync(kms, new Dictionary<string, string> { ["FOO"] = "base-foo" }));
 
 		var result = await new BundleFetcher(store, kms)
 			.FetchAsync(Bucket, AppName, EnvSegment, allowMissingBundle: false, CancellationToken.None);
@@ -136,7 +137,8 @@ public class BundleFetcherTests
 		// 별도 검증한다(코드 리뷰에서 지적됨).
 		var encryptingKms = new FakeKmsKeyOperations();
 		var store = new FakeBundleObjectStore();
-		store.SetObject(BaseKey, await EncryptAsync(encryptingKms, new Dictionary<string, string> { ["FOO"] = "bar" }));
+		store.SetObject(
+			BaseKey, await EncryptAsync(encryptingKms, new Dictionary<string, string> { ["FOO"] = "bar" }));
 
 		var decryptingKms = new ThrowingKmsKeyOperations();
 

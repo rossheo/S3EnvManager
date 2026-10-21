@@ -24,7 +24,8 @@ public sealed class SecretBundleService(
 	private const Int32 HistoryPageSize = 50;
 
 	public async Task<SecretEditSession> LoadForEditAsync(
-		Guid envId, SecretBundleKind kind = SecretBundleKind.Base, CancellationToken cancellationToken = default)
+		Guid envId, SecretBundleKind kind = SecretBundleKind.Base,
+		CancellationToken cancellationToken = default)
 	{
 		var env = await db.Envs.Include(e => e.App).AsNoTracking()
 			.SingleAsync(e => e.Id == envId, cancellationToken).ConfigureAwait(false);
@@ -122,7 +123,8 @@ public sealed class SecretBundleService(
 			{
 				reusableDataKeyCache!.Set(app.Name, adminArn, appArn, encryptResult.WrappedDataKey);
 			}
-			var putResult = await store.PutAsync(bucket, key, encryptResult.Content, actorEmail, cancellationToken)
+			var putResult = await store.PutAsync(
+				bucket, key, encryptResult.Content, actorEmail, cancellationToken)
 				.ConfigureAwait(false);
 
 			// 복호화 실패 등 검증 자체 예외도 값 불일치와 동일하게 취급해 롤백한다. 데이터 키는
@@ -131,7 +133,8 @@ public sealed class SecretBundleService(
 			var verificationPassed = false;
 			try
 			{
-				var verifyStored = await store.GetCurrentAsync(bucket, key, cancellationToken).ConfigureAwait(false)
+				var verifyStored = await store.GetCurrentAsync(bucket, key, cancellationToken)
+					.ConfigureAwait(false)
 					?? throw new InvalidOperationException("방금 저장한 오브젝트를 다시 읽을 수 없습니다.");
 				var verifiedValues = SopsEnvelopeCodec.DecryptWithDataKeyAndVerifyTrailer(
 					verifyStored.Content, encryptResult.DataKey, adminArn, appArn);
@@ -189,7 +192,8 @@ public sealed class SecretBundleService(
 				var eventType = kind == SecretBundleKind.Base
 					? AuditEventTypes.SecretEdited
 					: AuditEventTypes.OverwriteSecretEdited;
-				await auditLogger.LogAsync(eventType, actorUserId, app.Id, diff, cancellationToken).ConfigureAwait(false);
+				await auditLogger.LogAsync(eventType, actorUserId, app.Id, diff, cancellationToken)
+					.ConfigureAwait(false);
 			}
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -199,7 +203,8 @@ public sealed class SecretBundleService(
 	}
 
 	public async Task<IReadOnlyList<SecretObjectVersion>> ListHistoryAsync(
-		Guid envId, SecretBundleKind kind = SecretBundleKind.Base, CancellationToken cancellationToken = default)
+		Guid envId, SecretBundleKind kind = SecretBundleKind.Base,
+		CancellationToken cancellationToken = default)
 	{
 		var env = await db.Envs.Include(e => e.App).AsNoTracking()
 			.SingleAsync(e => e.Id == envId, cancellationToken).ConfigureAwait(false);
@@ -224,7 +229,8 @@ public sealed class SecretBundleService(
 
 		var content = await store.GetVersionContentAsync(bucket, key, versionId, cancellationToken)
 			.ConfigureAwait(false);
-		return await SopsEnvelopeCodec.DecryptAsAdminAsync(content, kms, cancellationToken).ConfigureAwait(false);
+		return await SopsEnvelopeCodec.DecryptAsAdminAsync(content, kms, cancellationToken)
+			.ConfigureAwait(false);
 	}
 
 	private async Task<IReadOnlyDictionary<string, DateTimeOffset>> LoadExpirationsAsync(
@@ -441,7 +447,8 @@ public sealed class SecretBundleService(
 		IReadOnlyList<string> expirationsChanged,
 		IReadOnlyList<string> referencesChanged)
 	{
-		var added = after.Keys.Where(k => !before.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+		var added = after.Keys.Where(k => !before.ContainsKey(k))
+			.OrderBy(k => k, StringComparer.Ordinal).ToList();
 		var removed = before.Keys.Where(k => !after.ContainsKey(k))
 			.OrderBy(k => k, StringComparer.Ordinal).ToList();
 		var changed = after.Keys.Where(k => before.TryGetValue(k, out var v) && v != after[k])
@@ -468,7 +475,8 @@ public sealed class SecretBundleService(
 			AuditJsonOptions.Default);
 	}
 
-	private static bool ValuesEqual(IReadOnlyDictionary<string, string> a, IReadOnlyDictionary<string, string> b)
+	private static bool ValuesEqual(
+		IReadOnlyDictionary<string, string> a, IReadOnlyDictionary<string, string> b)
 	{
 		if (a.Count != b.Count)
 		{

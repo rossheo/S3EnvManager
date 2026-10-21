@@ -26,7 +26,8 @@ public static class VersionInfo
 
 		GitBranch = metadata.TryGetValue("GitBranch", out var branch) && !string.IsNullOrWhiteSpace(branch)
 			? branch : "unknown";
-		GitCommitHash = metadata.TryGetValue("GitCommitHash", out var hash) && !string.IsNullOrWhiteSpace(hash)
+		GitCommitHash = metadata.TryGetValue(
+			"GitCommitHash", out var hash) && !string.IsNullOrWhiteSpace(hash)
 			? hash : "unknown";
 	}
 }

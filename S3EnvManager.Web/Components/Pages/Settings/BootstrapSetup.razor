@@ -71,7 +71,8 @@
 		Style="font-family: monospace;" />
 
 	<MudStack Row="true" Spacing="2" Class="mt-4">
-		<MudTextField @bind-Value="_accessKeyId" Label="AWS Access Key ID" Immediate="true" Style="flex: 1;" />
+		<MudTextField @bind-Value="_accessKeyId" Label="AWS Access Key ID" Immediate="true"
+			Style="flex: 1;" />
 		<MudTextField @bind-Value="_secretAccessKey"
 			Label="AWS Secret Access Key"
 			InputType="InputType.Password"
@@ -79,11 +80,12 @@
 			Style="flex: 1;" />
 	</MudStack>
 	<MudStack Row="true" Spacing="2" Class="mt-2">
-		<MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveCredentialAsync"
-			Disabled="_savingCredential">
+		<MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+			OnClick="SaveCredentialAsync" Disabled="_savingCredential">
 			@(_savingCredential ? "저장 중..." : "저장")
 		</MudButton>
-		<MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="ClearCredentialAsync">
+		<MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+			OnClick="ClearCredentialAsync">
 			초기화
 		</MudButton>
 		<MudText Typo="Typo.caption" Class="align-self-center">

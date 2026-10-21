@@ -17,7 +17,8 @@ public interface IKmsKeyAdministration
 	Task PutKeyPolicyAsync(string keyArn, string policyJson, CancellationToken cancellationToken = default);
 
 	Task TagKeyAsync(
-		string keyArn, IReadOnlyDictionary<string, string> tags, CancellationToken cancellationToken = default);
+		string keyArn, IReadOnlyDictionary<string, string> tags,
+		CancellationToken cancellationToken = default);
 
 	// 레지스트리에서 뺀 CMK가 AWS에는 Enabled로 남아 계속 과금되는 걸 막기 위한 삭제 예약.
 	// 대기기간(7~30일) 동안은 CancelKeyDeletion으로 되돌릴 수 있다.

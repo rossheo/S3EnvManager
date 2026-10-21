@@ -35,11 +35,15 @@ public sealed class FakeKmsKeyAdministration : IKmsKeyAdministration
 	}
 
 	public Task<string> CreateKeyAsync(
-		string description, IReadOnlyDictionary<string, string> tags, CancellationToken cancellationToken = default)
+		string description, IReadOnlyDictionary<string, string> tags,
+		CancellationToken cancellationToken = default)
 	{
 		// CmkRegistrations.Arn 전역 유니크 인덱스 때문에 순번 대신 GUID 기반으로 만든다.
 		var arn = $"arn:aws:kms:ap-northeast-2:000000000000:key/fake-{Guid.NewGuid():N}";
-		var record = new KeyRecord { Arn = arn, Description = description, CreatedAt = DateTimeOffset.UtcNow };
+		var record = new KeyRecord
+		{
+			Arn = arn, Description = description, CreatedAt = DateTimeOffset.UtcNow,
+		};
 		foreach (var (key, value) in tags)
 		{
 			record.Tags[key] = value;
@@ -65,14 +69,16 @@ public sealed class FakeKmsKeyAdministration : IKmsKeyAdministration
 		return Task.CompletedTask;
 	}
 
-	public Task PutKeyPolicyAsync(string keyArn, string policyJson, CancellationToken cancellationToken = default)
+	public Task PutKeyPolicyAsync(
+		string keyArn, string policyJson, CancellationToken cancellationToken = default)
 	{
 		keys[keyArn].Policy = policyJson;
 		return Task.CompletedTask;
 	}
 
 	public Task TagKeyAsync(
-		string keyArn, IReadOnlyDictionary<string, string> tags, CancellationToken cancellationToken = default)
+		string keyArn, IReadOnlyDictionary<string, string> tags,
+		CancellationToken cancellationToken = default)
 	{
 		// 실 kms:TagResource는 CreateKey를 거치지 않은 키에도 동작하므로 여기서도 재현한다.
 		if (!keys.TryGetValue(keyArn, out var record))

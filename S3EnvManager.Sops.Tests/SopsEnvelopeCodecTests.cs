@@ -11,7 +11,8 @@ public class SopsEnvelopeCodecTests
 		var kms = new FakeKmsKeyOperations();
 		var original = new Dictionary<string, string> { ["FOO"] = "bar", ["DB_PASSWORD"] = "hunter2" };
 
-		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
+		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(
+			original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
 		var decrypted = await SopsEnvelopeCodec.DecryptAsAdminAsync(fileContent, kms);
 
 		Assert.Equal(original, decrypted);
@@ -23,7 +24,8 @@ public class SopsEnvelopeCodecTests
 		var kms = new FakeKmsKeyOperations();
 		var original = new Dictionary<string, string> { ["FOO"] = "bar", ["DB_PASSWORD"] = "hunter2" };
 
-		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
+		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(
+			original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
 		var decrypted = await SopsEnvelopeCodec.DecryptAsAppAsync(fileContent, kms);
 
 		Assert.Equal(original, decrypted);
@@ -36,7 +38,8 @@ public class SopsEnvelopeCodecTests
 		// 실제 IAM 권한 분리는 AWS가 강제하며 Web.Tests의 실인프라 테스트가 검증한다.
 		var kms = new FakeKmsKeyOperations();
 		var original = new Dictionary<string, string> { ["FOO"] = "bar" };
-		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
+		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(
+			original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
 
 		var document = SopsDotEnvDocument.Parse(fileContent);
 		Assert.Equal(AdminCmkArn, document.KmsEntries[0].Arn);
@@ -50,7 +53,8 @@ public class SopsEnvelopeCodecTests
 		// admin CMK 승격 후에도 예전 CMK로 감싼 번들이 열려야 한다 - 트레일러 ARN을 쓰는지 확인.
 		var kms = new FakeKmsKeyOperations();
 		var original = new Dictionary<string, string> { ["FOO"] = "bar" };
-		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
+		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(
+			original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
 
 		var decrypted = await SopsEnvelopeCodec.DecryptAsAdminAsync(fileContent, kms);
 		Assert.Equal(original, decrypted);
@@ -61,7 +65,8 @@ public class SopsEnvelopeCodecTests
 	{
 		var kms = new FakeKmsKeyOperations();
 		var original = new Dictionary<string, string> { ["FOO"] = "bar" };
-		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
+		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(
+			original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
 
 		var tampered = Tamper(fileContent);
 
@@ -77,7 +82,8 @@ public class SopsEnvelopeCodecTests
 		// 같아야 한다.
 		var kms = new FakeKmsKeyOperations();
 		var original = new Dictionary<string, string> { ["FOO"] = "bar", ["DB_PASSWORD"] = "hunter2" };
-		var result = await SopsEnvelopeCodec.EncryptAsync(original, AdminCmkArn, AppCmkArn, "myapp", kms, kms);
+		var result = await SopsEnvelopeCodec.EncryptAsync(
+			original, AdminCmkArn, AppCmkArn, "myapp", kms, kms);
 
 		var decrypted = SopsEnvelopeCodec.DecryptWithDataKey(result.Content, result.DataKey);
 
@@ -89,11 +95,13 @@ public class SopsEnvelopeCodecTests
 	{
 		var kms = new FakeKmsKeyOperations();
 		var original = new Dictionary<string, string> { ["FOO"] = "bar" };
-		var result = await SopsEnvelopeCodec.EncryptAsync(original, AdminCmkArn, AppCmkArn, "myapp", kms, kms);
+		var result = await SopsEnvelopeCodec.EncryptAsync(
+			original, AdminCmkArn, AppCmkArn, "myapp", kms, kms);
 
 		var tampered = Tamper(result.Content);
 
-		Assert.Throws<CryptographicMacException>(() => SopsEnvelopeCodec.DecryptWithDataKey(tampered, result.DataKey));
+		Assert.Throws<CryptographicMacException>(
+			() => SopsEnvelopeCodec.DecryptWithDataKey(tampered, result.DataKey));
 	}
 
 	// 값/MAC은 멀쩡한데 트레일러(admin ARN)만 바뀐 경우 - DecryptWithDataKey는(트레일러를 보지
@@ -104,10 +112,12 @@ public class SopsEnvelopeCodecTests
 	{
 		var kms = new FakeKmsKeyOperations();
 		var original = new Dictionary<string, string> { ["FOO"] = "bar" };
-		var result = await SopsEnvelopeCodec.EncryptAsync(original, AdminCmkArn, AppCmkArn, "myapp", kms, kms);
+		var result = await SopsEnvelopeCodec.EncryptAsync(
+			original, AdminCmkArn, AppCmkArn, "myapp", kms, kms);
 
 		var document = SopsDotEnvDocument.Parse(result.Content);
-		document.KmsEntries[0] = document.KmsEntries[0] with { Arn = document.KmsEntries[0].Arn + "-tampered" };
+		document.KmsEntries[0] = document.KmsEntries[0] with
+			{ Arn = document.KmsEntries[0].Arn + "-tampered" };
 		var tamperedTrailer = document.Serialize();
 
 		var decrypted = SopsEnvelopeCodec.DecryptWithDataKey(tamperedTrailer, result.DataKey);

@@ -1,7 +1,8 @@
 namespace S3EnvManager.Web.Services;
 
 public sealed class BucketSelfHealService(
-	IBucketComplianceOperations bucket, IAuditLogger auditLogger, TimeProvider timeProvider) : IBucketSelfHealService
+	IBucketComplianceOperations bucket, IAuditLogger auditLogger,
+	TimeProvider timeProvider) : IBucketSelfHealService
 {
 	private const Int32 NoncurrentVersionExpirationDays = 180;
 	private const string LifecycleRuleId = "s3envmanager-noncurrent-version-expiration";
@@ -11,15 +12,18 @@ public sealed class BucketSelfHealService(
 	{
 		var changesApplied = new List<string>();
 
-		var versioningEnabled = await EnsureVersioningEnabledAsync(bucketName, changesApplied, cancellationToken)
+		var versioningEnabled = await EnsureVersioningEnabledAsync(
+			bucketName, changesApplied, cancellationToken)
 			.ConfigureAwait(false);
 		var publicAccessBlocked = await EnsurePublicAccessBlockedAsync(
 			bucketName, changesApplied, cancellationToken).ConfigureAwait(false);
 		var objectOwnershipEnforced = await EnsureObjectOwnershipEnforcedAsync(
 			bucketName, changesApplied, cancellationToken).ConfigureAwait(false);
-		var lifecycleConfigured = await EnsureLifecycleRuleAsync(bucketName, changesApplied, cancellationToken)
+		var lifecycleConfigured = await EnsureLifecycleRuleAsync(
+			bucketName, changesApplied, cancellationToken)
 			.ConfigureAwait(false);
-		var tlsEnforced = await DetectTlsEnforcementAsync(bucketName, cancellationToken).ConfigureAwait(false);
+		var tlsEnforced = await DetectTlsEnforcementAsync(bucketName, cancellationToken)
+			.ConfigureAwait(false);
 
 		// 이미 정상이었던 확인만으로는 로그를 남기지 않는다.
 		if (changesApplied.Count > 0)
@@ -54,12 +58,14 @@ public sealed class BucketSelfHealService(
 		string bucketName, List<string> changesApplied, CancellationToken cancellationToken)
 	{
 		var desired = new PublicAccessBlockState(
-			BlockPublicAcls: true, IgnorePublicAcls: true, BlockPublicPolicy: true, RestrictPublicBuckets: true);
+			BlockPublicAcls: true, IgnorePublicAcls: true, BlockPublicPolicy: true,
+			RestrictPublicBuckets: true);
 
 		PublicAccessBlockState? current;
 		try
 		{
-			current = await bucket.GetPublicAccessBlockAsync(bucketName, cancellationToken).ConfigureAwait(false);
+			current = await bucket.GetPublicAccessBlockAsync(bucketName, cancellationToken)
+				.ConfigureAwait(false);
 		}
 		catch (BucketOperationNotSupportedException)
 		{
@@ -73,7 +79,8 @@ public sealed class BucketSelfHealService(
 
 		try
 		{
-			await bucket.PutPublicAccessBlockAsync(bucketName, desired, cancellationToken).ConfigureAwait(false);
+			await bucket.PutPublicAccessBlockAsync(bucketName, desired, cancellationToken)
+				.ConfigureAwait(false);
 		}
 		catch (BucketOperationNotSupportedException)
 		{
@@ -124,7 +131,8 @@ public sealed class BucketSelfHealService(
 		}
 
 		await bucket.AddNoncurrentVersionExpirationRuleAsync(
-			bucketName, LifecycleRuleId, NoncurrentVersionExpirationDays, cancellationToken).ConfigureAwait(false);
+			bucketName, LifecycleRuleId, NoncurrentVersionExpirationDays,
+			cancellationToken).ConfigureAwait(false);
 		changesApplied.Add($"Noncurrent 버전 만료 lifecycle 규칙 추가({NoncurrentVersionExpirationDays}일)");
 		return true;
 	}

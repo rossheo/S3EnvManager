@@ -43,7 +43,8 @@ public static class DataProtectionCertificateRotationService
 				.FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
 			var due = latest is null ||
-				timeProvider.GetUtcNow() >= latest.NotAfter - TimeSpan.FromDays(options.RotateBeforeExpiryDays);
+				timeProvider.GetUtcNow() >= latest.NotAfter - TimeSpan.FromDays(
+					options.RotateBeforeExpiryDays);
 			if (!due)
 			{
 				await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -51,7 +52,8 @@ public static class DataProtectionCertificateRotationService
 			}
 
 			var issued = await DataProtectionCertificateStore.IssueAndSaveAsync(
-				db, options.Password, options.ValidityYears, timeProvider, cancellationToken).ConfigureAwait(false);
+				db, options.Password, options.ValidityYears, timeProvider,
+				cancellationToken).ConfigureAwait(false);
 
 			var details = System.Text.Json.JsonSerializer.Serialize(
 				new { thumbprint = issued.Thumbprint, notAfter = issued.NotAfter });
@@ -66,7 +68,8 @@ public static class DataProtectionCertificateRotationService
 
 		if (outcome == DataProtectionCertificateRotationOutcome.Rotated)
 		{
-			var all = await DataProtectionCertificateStore.LoadAllAsync(db, options.Password, cancellationToken)
+			var all = await DataProtectionCertificateStore.LoadAllAsync(
+				db, options.Password, cancellationToken)
 				.ConfigureAwait(false);
 			cache.ReplaceSnapshot(all);
 		}

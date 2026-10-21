@@ -28,7 +28,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			CreateDbContext(), CreateSecretKeyCipher(kms),
+			new AuditLogger(CreateDbContext(), TimeProvider.System),
 			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 
 		// 역할을 우선 존재시킨 뒤 시퀀스 권한을 명시적으로 걷어낸다 - 공유 DB에서 이전 실행이나
@@ -75,7 +76,8 @@ public class DbBackupAccountTests
 		}
 
 		await using (var insertCmd = new NpgsqlCommand(
-			"INSERT INTO \"Apps\" (\"Id\", \"Name\", \"Bucket\", \"CreatedAt\") VALUES (gen_random_uuid(), 'should-fail', 'x', now())",
+			"INSERT INTO \"Apps\" (\"Id\", \"Name\", \"Bucket\", \"CreatedAt\") " +
+			"VALUES (gen_random_uuid(), 'should-fail', 'x', now())",
 			readOnlyConnection))
 		{
 			await Assert.ThrowsAsync<PostgresException>(() => insertCmd.ExecuteNonQueryAsync());
@@ -95,7 +97,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			CreateDbContext(), CreateSecretKeyCipher(kms),
+			new AuditLogger(CreateDbContext(), TimeProvider.System),
 			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.RotateNowAsync();
 		var info1 = await service.GetCurrentAsync();
@@ -138,7 +141,8 @@ public class DbBackupAccountTests
 			await conn.OpenAsync();
 			try
 			{
-				await using var createCmd = new NpgsqlCommand("CREATE ROLE \"s3envmanager_backup_readonly\" LOGIN", conn);
+				await using var createCmd = new NpgsqlCommand(
+					"CREATE ROLE \"s3envmanager_backup_readonly\" LOGIN", conn);
 				await createCmd.ExecuteNonQueryAsync();
 			}
 			catch (PostgresException ex) when (ex.SqlState == "42710")
@@ -148,7 +152,8 @@ public class DbBackupAccountTests
 		}
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			CreateDbContext(), CreateSecretKeyCipher(kms),
+			new AuditLogger(CreateDbContext(), TimeProvider.System),
 			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.EnsureAsync();
 
@@ -169,7 +174,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			CreateDbContext(), CreateSecretKeyCipher(kms),
+			new AuditLogger(CreateDbContext(), TimeProvider.System),
 			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.EnsureAsync();
 		var info1 = await service.GetCurrentAsync();
@@ -197,7 +203,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			CreateDbContext(), CreateSecretKeyCipher(kms),
+			new AuditLogger(CreateDbContext(), TimeProvider.System),
 			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.EnsureAsync();
 		var infoBefore = await service.GetCurrentAsync();
@@ -247,7 +254,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			CreateDbContext(), CreateSecretKeyCipher(kms),
+			new AuditLogger(CreateDbContext(), TimeProvider.System),
 			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.EnsureAsync();
 		var info = await service.GetCurrentAsync();

@@ -9,7 +9,8 @@ public static class AppPurgeService
 	public static readonly TimeSpan RetentionPeriod = TimeSpan.FromDays(60);
 
 	public static async Task PurgeEligibleAppsAsync(
-		ApplicationDbContext db, ISecretObjectStore store, IPrimaryStorageSettingsStore primaryStorageSettingsStore,
+		ApplicationDbContext db, ISecretObjectStore store,
+		IPrimaryStorageSettingsStore primaryStorageSettingsStore,
 		IAuditLogger auditLogger, TimeProvider timeProvider, CancellationToken cancellationToken = default)
 	{
 		var cutoff = timeProvider.GetUtcNow() - RetentionPeriod;

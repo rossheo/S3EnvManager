@@ -19,14 +19,16 @@ public interface IBucketComplianceOperations
 	Task PutPublicAccessBlockAsync(
 		string bucketName, PublicAccessBlockState state, CancellationToken cancellationToken = default);
 
-	Task<bool> IsObjectOwnershipEnforcedAsync(string bucketName, CancellationToken cancellationToken = default);
+	Task<bool> IsObjectOwnershipEnforcedAsync(
+		string bucketName, CancellationToken cancellationToken = default);
 
 	Task EnforceObjectOwnershipAsync(string bucketName, CancellationToken cancellationToken = default);
 
 	Task<bool> HasLifecycleRuleAsync(string bucketName, CancellationToken cancellationToken = default);
 
 	Task AddNoncurrentVersionExpirationRuleAsync(
-		string bucketName, string ruleId, Int32 noncurrentDays, CancellationToken cancellationToken = default);
+		string bucketName, string ruleId, Int32 noncurrentDays,
+		CancellationToken cancellationToken = default);
 
 	Task<string?> GetBucketPolicyAsync(string bucketName, CancellationToken cancellationToken = default);
 }

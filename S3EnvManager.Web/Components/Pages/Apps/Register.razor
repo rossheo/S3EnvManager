@@ -40,7 +40,7 @@ else
 			<MudTextField @bind-Value="_model.Name" Label="App 이름" Required="true"
 				RequiredError="App 이름을 입력하세요." Immediate="true"
 				Validation="@(new Func<string, string?>(AppNameValidator.Validate))"
-				HelperText="@($"IAM 사용자 이름으로도 쓰인다 - 영문자, 숫자, + = , . @ _ - 만 사용 가능(최대 {AppNameValidator.MaxLength}자).")" />
+				HelperText="@AppNameHelperText" />
 			<MudTextField Value="@_bucket" Label="버킷 이름" ReadOnly="true" Disabled="true" Class="mt-4"
 				HelperText="주 저장소로 프로비저닝된 버킷입니다 - 모든 App이 이 버킷을 공유합니다." />
 
@@ -50,7 +50,8 @@ else
 			}
 
 			<MudStack Row="true" Class="mt-4" Spacing="2">
-				<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="_submitting">
+				<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync"
+					Disabled="_submitting">
 					@(_submitting ? "등록 중..." : "등록")
 				</MudButton>
 				<MudButton Variant="Variant.Text" OnClick="@(() => NavigationManager.NavigateTo("/apps"))">
@@ -62,6 +63,10 @@ else
 }
 
 @code {
+	private static readonly string AppNameHelperText =
+		"IAM 사용자 이름으로도 쓰인다 - 영문자, 숫자, + = , . @ _ - 만 사용 가능" +
+		$"(최대 {AppNameValidator.MaxLength}자).";
+
 	[CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
 	private MudForm _form = null!;

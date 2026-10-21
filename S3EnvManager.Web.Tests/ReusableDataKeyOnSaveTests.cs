@@ -135,7 +135,8 @@ public class ReusableDataKeyOnSaveTests
 		await using var db = CreateDbContext();
 		await GetOrCreateActiveCmkAsync(db, CmkRole.Admin);
 		await GetOrCreateActiveCmkAsync(db, CmkRole.App);
-		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System)
+			.SaveAsync(null, TestBucket);
 
 		var app = new App { Id = Guid.NewGuid(), Name = appName, CreatedAt = DateTimeOffset.UtcNow };
 		var env = new Env { Id = Guid.NewGuid(), AppId = app.Id, Name = EnvName.Dev };

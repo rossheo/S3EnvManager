@@ -20,7 +20,8 @@ public sealed class TrailerTamperingSecretObjectStore(ISecretObjectStore inner, 
 		if (result is not null && callNumber == tamperOnCallNumber)
 		{
 			var document = SopsDotEnvDocument.Parse(result.Content);
-			document.KmsEntries[0] = document.KmsEntries[0] with { Arn = document.KmsEntries[0].Arn + "-tampered" };
+			document.KmsEntries[0] = document.KmsEntries[0] with
+				{ Arn = document.KmsEntries[0].Arn + "-tampered" };
 			return result with { Content = document.Serialize() };
 		}
 		return result;

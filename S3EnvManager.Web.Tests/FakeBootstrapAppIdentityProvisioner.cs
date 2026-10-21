@@ -16,7 +16,8 @@ public sealed class FakeBootstrapAppIdentityProvisioner : IBootstrapAppIdentityP
 		return Task.FromResult("arn:aws:iam::000000000000:user/s3envmanager-app");
 	}
 
-	public Task PutPolicyAsync(IReadOnlyCollection<string> appCmkArns, CancellationToken cancellationToken = default)
+	public Task PutPolicyAsync(
+		IReadOnlyCollection<string> appCmkArns, CancellationToken cancellationToken = default)
 	{
 		if (!UserProvisioned)
 		{

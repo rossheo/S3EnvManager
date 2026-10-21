@@ -58,12 +58,14 @@ else
 					{
 						<MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
 							@{ var editHref = $"/apps/{context.Id}/edit/{env.Name.ToObjectSegment()}"; }
-							<MudChip T="string" Size="Size.Small" Color="@EnvColor(env.Name)" Variant="Variant.Filled"
+							<MudChip T="string" Size="Size.Small" Color="@EnvColor(env.Name)"
+								Variant="Variant.Filled"
 								OnClick="@(() => NavigationManager.NavigateTo(editHref))">
 								@EnvLabel(env.Name)
 							</MudChip>
 							<MudTooltip Text="우선순위가 가장 높은 오버라이드 레이어를 편집합니다.">
-								<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+								<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+									Color="Color.Warning"
 									OnClick="@(() => NavigationManager.NavigateTo($"{editHref}/overwrite"))">
 									overwrite
 								</MudChip>
@@ -79,13 +81,15 @@ else
 						OnClick="@(() => NavigationManager.NavigateTo($"/apps/{context.Id}/credentials"))" />
 				</MudTooltip>
 				<MudTooltip Text="App 삭제">
-					<MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" Color="Color.Error"
+					<MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small"
+						Color="Color.Error"
 						OnClick="@(() => DeleteAsync(context.Id, context.Name))" />
 				</MudTooltip>
 			</MudTd>
 		</RowTemplate>
 		<PagerContent>
-			<MudTablePager RowsPerPageString="페이지당 App 수:" InfoFormat="{first_item}-{last_item} / {all_items}" />
+			<MudTablePager RowsPerPageString="페이지당 App 수:"
+				InfoFormat="{first_item}-{last_item} / {all_items}" />
 		</PagerContent>
 	</MudTable>
 }

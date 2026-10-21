@@ -30,7 +30,8 @@ public sealed class BundleFetcher(IBundleObjectStore store, IKmsKeyOperations km
 			throw new CliException(ExitCode.BundleMissing, $"'{baseKey}'가 S3에 없습니다.");
 		}
 
-		var (overwriteValues, overwriteFound) = await TryReadBundleAsync(bucket, overwriteKey, cancellationToken)
+		var (overwriteValues, overwriteFound) = await TryReadBundleAsync(
+			bucket, overwriteKey, cancellationToken)
 			.ConfigureAwait(false);
 
 		var merged = new SortedDictionary<string, string>(StringComparer.Ordinal);
@@ -112,7 +113,8 @@ public sealed class BundleFetcher(IBundleObjectStore store, IKmsKeyOperations km
 		Dictionary<string, string> values;
 		try
 		{
-			values = await SopsEnvelopeCodec.DecryptAsAppAsync(content, kms, cancellationToken).ConfigureAwait(false);
+			values = await SopsEnvelopeCodec.DecryptAsAppAsync(content, kms, cancellationToken)
+				.ConfigureAwait(false);
 		}
 		catch (Exception ex) when (ex is CryptographicMacException or AmazonKeyManagementServiceException)
 		{

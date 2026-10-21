@@ -103,7 +103,8 @@ public class AppCredentialServiceTests
 		public SecretBundleService CreateSecretBundleService() =>
 			new(
 				CreateDbContext(), new FakeSecretObjectStore(), Kms, Kms,
-				new AuditLogger(CreateDbContext(), TimeProvider.System), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+				new AuditLogger(CreateDbContext(), TimeProvider.System),
+				new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
 				TimeProvider.System);
 
 		public AppCredentialService CreateCredentialService()
@@ -111,7 +112,8 @@ public class AppCredentialServiceTests
 			var db = CreateDbContext();
 			var cache = new DataKeyCache();
 			return new AppCredentialService(
-				db, Provisioner, new AppSecretKeyCipher(db, Kms, cache, TimeProvider.System), new AuditLogger(db, TimeProvider.System),
+				db, Provisioner, new AppSecretKeyCipher(db, Kms, cache, TimeProvider.System),
+				new AuditLogger(db, TimeProvider.System),
 				new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		}
 
@@ -140,6 +142,8 @@ public class AppCredentialServiceTests
 		}
 
 		private static ApplicationDbContext CreateDbContext() =>
-			new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(PostgresConnectionString).Options);
+			new(
+				new DbContextOptionsBuilder<ApplicationDbContext>()
+					.UseNpgsql(PostgresConnectionString).Options);
 	}
 }

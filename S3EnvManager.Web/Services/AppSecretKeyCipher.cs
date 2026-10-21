@@ -7,7 +7,8 @@ using S3EnvManager.Sops;
 
 namespace S3EnvManager.Web.Services;
 
-public sealed class AppSecretKeyCipher(ApplicationDbContext db, IKmsKeyOperations kms, IDataKeyCache cache, TimeProvider timeProvider)
+public sealed class AppSecretKeyCipher(
+	ApplicationDbContext db, IKmsKeyOperations kms, IDataKeyCache cache, TimeProvider timeProvider)
 	: IAppSecretKeyCipher
 {
 	private const Int32 NonceSize = 12;
@@ -52,7 +53,8 @@ public sealed class AppSecretKeyCipher(ApplicationDbContext db, IKmsKeyOperation
 	public async Task<string> DecryptAsync(
 		byte[] ciphertext, Guid dataKeyId, CancellationToken cancellationToken = default)
 	{
-		var plaintextKey = await GetGenerationPlaintextAsync(dataKeyId, cancellationToken).ConfigureAwait(false);
+		var plaintextKey = await GetGenerationPlaintextAsync(dataKeyId, cancellationToken)
+			.ConfigureAwait(false);
 
 		var nonce = ciphertext[..NonceSize];
 		var tag = ciphertext[NonceSize..(NonceSize + TagSize)];
@@ -72,11 +74,13 @@ public sealed class AppSecretKeyCipher(ApplicationDbContext db, IKmsKeyOperation
 			.FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 		if (latest is not null)
 		{
-			return (latest.KeyId, await GetGenerationPlaintextAsync(latest, cancellationToken).ConfigureAwait(false));
+			return (latest.KeyId,
+				await GetGenerationPlaintextAsync(latest, cancellationToken).ConfigureAwait(false));
 		}
 
 		var adminCmk = await db.CmkRegistrations.AsNoTracking()
-			.SingleOrDefaultAsync(c => c.Role == CmkRole.Admin && c.Status == CmkStatus.Active, cancellationToken)
+			.SingleOrDefaultAsync(
+				c => c.Role == CmkRole.Admin && c.Status == CmkStatus.Active, cancellationToken)
 			.ConfigureAwait(false)
 			?? throw new InvalidOperationException("admin role의 활성 CMK가 등록되어 있지 않습니다.");
 
@@ -98,7 +102,8 @@ public sealed class AppSecretKeyCipher(ApplicationDbContext db, IKmsKeyOperation
 		return (generation.KeyId, plaintextKey);
 	}
 
-	private async Task<byte[]> GetGenerationPlaintextAsync(Guid dataKeyId, CancellationToken cancellationToken)
+	private async Task<byte[]> GetGenerationPlaintextAsync(
+		Guid dataKeyId, CancellationToken cancellationToken)
 	{
 		if (cache.TryGet(dataKeyId, out var cached))
 		{
@@ -123,7 +128,8 @@ public sealed class AppSecretKeyCipher(ApplicationDbContext db, IKmsKeyOperation
 			.Select(c => c.Arn)
 			.SingleAsync(cancellationToken).ConfigureAwait(false);
 
-		var plaintextKey = await kms.DecryptAsync(cmkArn, generation.CiphertextBlob, NoContext, cancellationToken)
+		var plaintextKey = await kms.DecryptAsync(
+			cmkArn, generation.CiphertextBlob, NoContext, cancellationToken)
 			.ConfigureAwait(false);
 		cache.Set(generation.KeyId, plaintextKey);
 		return plaintextKey;

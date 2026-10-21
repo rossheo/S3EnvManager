@@ -196,7 +196,8 @@ using (var scope = app.Services.CreateScope())
 	if (!string.IsNullOrEmpty(dataProtectionCertificatePassword))
 	{
 		var dataProtectionCertificateOptions = scope.ServiceProvider
-			.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataProtectionCertificateOptions>>().Value;
+			.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataProtectionCertificateOptions>>()
+			.Value;
 		var loadedCertificates = await DataProtectionCertificateStore.LoadAllAsync(
 			db, dataProtectionCertificatePassword);
 		if (loadedCertificates.Count == 0)
@@ -240,7 +241,8 @@ using (var scope = app.Services.CreateScope())
 	}
 
 	// 주 저장소 엔드포인트도 같은 시점에 적용한다.
-	var primaryStorageSettingsStore = scope.ServiceProvider.GetRequiredService<IPrimaryStorageSettingsStore>();
+	var primaryStorageSettingsStore = scope.ServiceProvider
+		.GetRequiredService<IPrimaryStorageSettingsStore>();
 	var primaryStorageOverride = scope.ServiceProvider.GetRequiredService<IRuntimePrimaryStorageOverride>();
 	var storedPrimaryStorage = await primaryStorageSettingsStore.GetAsync();
 	if (storedPrimaryStorage is not null)
@@ -270,7 +272,8 @@ using (var scope = app.Services.CreateScope())
 			await featureSwitchService.IsEnabledAsync(
 				S3EnvManager.Database.Models.FeatureSwitchKeys.AutoProvisioningSelfHeal))
 		{
-			var autoProvisioningService = scope.ServiceProvider.GetRequiredService<IAwsAutoProvisioningService>();
+			var autoProvisioningService = scope.ServiceProvider
+				.GetRequiredService<IAwsAutoProvisioningService>();
 			await autoProvisioningService.EnsureProvisionedAsync(
 				new ProvisioningRequest(Bucket: "", Region: "", CreateBucketIfMissing: false),
 				actorUserId: null, includeBucketProvisioning: false);

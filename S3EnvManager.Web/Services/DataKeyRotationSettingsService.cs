@@ -3,13 +3,15 @@ using S3EnvManager.Database;
 
 namespace S3EnvManager.Web.Services;
 
-public sealed class DataKeyRotationSettingsService(ApplicationDbContext db, IAuditLogger auditLogger, TimeProvider timeProvider)
+public sealed class DataKeyRotationSettingsService(
+	ApplicationDbContext db, IAuditLogger auditLogger, TimeProvider timeProvider)
 	: IDataKeyRotationSettingsService
 {
 	public async Task<Int32> GetIntervalDaysAsync(CancellationToken cancellationToken = default)
 	{
 		var settings = await db.DataKeyRotationSettings.AsNoTracking()
-			.SingleOrDefaultAsync(s => s.Id == Database.Models.DataKeyRotationSettings.SingletonId, cancellationToken)
+			.SingleOrDefaultAsync(
+				s => s.Id == Database.Models.DataKeyRotationSettings.SingletonId, cancellationToken)
 			.ConfigureAwait(false);
 		return settings?.RotationIntervalDays ?? IDataKeyRotationSettingsService.DefaultDays;
 	}
@@ -60,7 +62,8 @@ public sealed class DataKeyRotationSettingsService(ApplicationDbContext db, IAud
 			var details = System.Text.Json.JsonSerializer.Serialize(
 				new { previousDays, newDays = days }, AuditJsonOptions.Default);
 			await auditLogger.LogAsync(
-				AuditEventTypes.DataKeyRotationIntervalChanged, actorUserId, appId: null, details, cancellationToken)
+				AuditEventTypes.DataKeyRotationIntervalChanged, actorUserId, appId: null, details,
+				cancellationToken)
 				.ConfigureAwait(false);
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

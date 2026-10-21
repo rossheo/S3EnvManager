@@ -28,7 +28,8 @@ public class AppDeletionAndPurgeTests
 		var adminArn = await GetOrCreateActiveCmkAsync(db, CmkRole.Admin);
 		await GetOrCreateActiveCmkAsync(db, CmkRole.App);
 
-		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System)
+			.SaveAsync(null, TestBucket);
 		var app = new App
 		{
 			Id = Guid.NewGuid(), Name = appName, CreatedAt = DateTimeOffset.UtcNow
@@ -41,12 +42,16 @@ public class AppDeletionAndPurgeTests
 		await db.SaveChangesAsync();
 
 		var credentialService = new AppCredentialService(
-			CreateDbContext(), iam, new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache(), TimeProvider.System),
-			new AuditLogger(CreateDbContext(), TimeProvider.System), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
+			CreateDbContext(), iam,
+			new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache(), TimeProvider.System),
+			new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var (credential, _) = await credentialService.IssueAsync(app.Id);
 		Assert.True(iam.Users[appName].Exists);
 
-		var deletionService = new AppDeletionService(CreateDbContext(), iam, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
+		var deletionService = new AppDeletionService(
+			CreateDbContext(), iam, new AuditLogger(CreateDbContext(), TimeProvider.System),
+			TimeProvider.System);
 		await deletionService.DeleteAsync(app.Id);
 
 		await using (var verifyDb = CreateDbContext())
@@ -87,7 +92,8 @@ public class AppDeletionAndPurgeTests
 
 		var actorUserId = "actor-" + Guid.NewGuid().ToString("N")[..8];
 		var deletionService = new AppDeletionService(
-			CreateDbContext(), iam, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
+			CreateDbContext(), iam, new AuditLogger(CreateDbContext(), TimeProvider.System),
+			TimeProvider.System);
 		await deletionService.DeleteAsync(app.Id, actorUserId);
 
 		await using var verifyDb = CreateDbContext();
@@ -113,7 +119,8 @@ public class AppDeletionAndPurgeTests
 		await GetOrCreateActiveCmkAsync(db, CmkRole.Admin);
 		await GetOrCreateActiveCmkAsync(db, CmkRole.App);
 
-		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System)
+			.SaveAsync(null, TestBucket);
 		var app = new App
 		{
 			Id = Guid.NewGuid(), Name = appName, CreatedAt = DateTimeOffset.UtcNow
@@ -128,7 +135,8 @@ public class AppDeletionAndPurgeTests
 			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext(), TimeProvider.System),
 			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		await bundleService.SaveAsync(
-			devEnv.Id, new Dictionary<string, string>(), null, new Dictionary<string, string> { ["A"] = "1" });
+			devEnv.Id, new Dictionary<string, string>(), null,
+			new Dictionary<string, string> { ["A"] = "1" });
 		await bundleService.SaveAsync(devEnv.Id, new Dictionary<string, string>(), null,
 			new Dictionary<string, string> { ["A"] = "override" }, kind: SecretBundleKind.Overwrite);
 

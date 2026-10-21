@@ -48,14 +48,16 @@
 		<MudText Typo="Typo.body1">아직 기록된 이벤트가 없습니다.</MudText>
 	</NoRecordsContent>
 	<PagerContent>
-		<MudTablePager PageSizeOptions="new[] { 25, 50, 100 }" InfoFormat="{first_item}-{last_item} / 총 {all_items}건" />
+		<MudTablePager PageSizeOptions="new[] { 25, 50, 100 }"
+			InfoFormat="{first_item}-{last_item} / 총 {all_items}건" />
 	</PagerContent>
 </MudTable>
 
 @code {
 	private Boolean _loading;
 
-	private async Task<TableData<Row>> ServerReloadAsync(TableState state, CancellationToken cancellationToken)
+	private async Task<TableData<Row>> ServerReloadAsync(
+		TableState state, CancellationToken cancellationToken)
 	{
 		_loading = true;
 
@@ -67,7 +69,8 @@
 			.Take(state.PageSize)
 			.ToListAsync(cancellationToken);
 
-		var actorIds = logs.Where(l => l.ActorUserId is not null).Select(l => l.ActorUserId!).Distinct().ToList();
+		var actorIds = logs.Where(l => l.ActorUserId is not null).Select(l => l.ActorUserId!)
+			.Distinct().ToList();
 		var actorEmails = await Db.Users.AsNoTracking()
 			.Where(u => actorIds.Contains(u.Id))
 			.ToDictionaryAsync(u => u.Id, u => u.Email, cancellationToken);

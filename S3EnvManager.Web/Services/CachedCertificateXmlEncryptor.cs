@@ -12,7 +12,8 @@ public sealed class CachedCertificateXmlEncryptor(DataProtectionCertificateCache
 	{
 		var certificate = cache.GetActive()
 			?? throw new InvalidOperationException("사용 가능한 DataProtection 인증서가 없습니다.");
-		var inner = new CertificateXmlEncryptor(certificate, NullLoggerFactory.Instance).Encrypt(plaintextElement);
+		var inner = new CertificateXmlEncryptor(certificate, NullLoggerFactory.Instance)
+			.Encrypt(plaintextElement);
 		return new EncryptedXmlInfo(inner.EncryptedElement, typeof(CachedCertificateXmlDecryptor));
 	}
 }

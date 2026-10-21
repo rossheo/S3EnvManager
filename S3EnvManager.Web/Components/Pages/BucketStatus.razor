@@ -74,7 +74,8 @@ else
 	private static RenderFragment StatusIcon(bool ok) => builder =>
 	{
 		builder.OpenComponent<MudIcon>(0);
-		builder.AddAttribute(1, "Icon", ok ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel);
+		builder.AddAttribute(
+			1, "Icon", ok ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel);
 		builder.AddAttribute(2, "Color", ok ? Color.Success : Color.Error);
 		builder.AddAttribute(3, "Size", Size.Small);
 		builder.CloseComponent();

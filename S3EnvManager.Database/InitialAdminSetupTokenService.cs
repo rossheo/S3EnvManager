@@ -42,7 +42,8 @@ public static class InitialAdminSetupTokenService
 		{
 			db.ChangeTracker.Clear();
 			var raceWinner = await db.InitialAdminSetupTokens.AsNoTracking()
-				.SingleAsync(t => t.Id == InitialAdminSetupToken.SingletonId, cancellationToken).ConfigureAwait(false);
+				.SingleAsync(t => t.Id == InitialAdminSetupToken.SingletonId, cancellationToken)
+				.ConfigureAwait(false);
 			return raceWinner.Token;
 		}
 	}
@@ -72,7 +73,8 @@ public static class InitialAdminSetupTokenService
 			return;
 		}
 
-		var generatedToken = await EnsureGeneratedTokenAsync(db, timeProvider, cancellationToken).ConfigureAwait(false);
+		var generatedToken = await EnsureGeneratedTokenAsync(db, timeProvider, cancellationToken)
+			.ConfigureAwait(false);
 		logger.LogWarning(
 			"관리자 계정이 아직 없습니다 - 회원가입 화면에서 아래 초기 설정 토큰을 입력한 첫 사용자가 " +
 			"Administrator 권한을 받습니다: {Token}", generatedToken);

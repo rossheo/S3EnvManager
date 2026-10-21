@@ -16,7 +16,8 @@ public interface IAppCredentialProvisioner
 		string appName, string bucket, IReadOnlyCollection<string> appFacingCmkArns,
 		CancellationToken cancellationToken = default);
 
-	Task RevokeAccessKeyAsync(string appName, string accessKeyId, CancellationToken cancellationToken = default);
+	Task RevokeAccessKeyAsync(
+		string appName, string accessKeyId, CancellationToken cancellationToken = default);
 
 	Task DeleteUserAsync(string appName, CancellationToken cancellationToken = default);
 }

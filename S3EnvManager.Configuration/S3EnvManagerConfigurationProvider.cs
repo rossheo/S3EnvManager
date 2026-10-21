@@ -36,7 +36,8 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 		_objectKey = $"{options.AppName}/{options.EnvSegment}{suffix}";
 		_localCachePath = options.LocalCacheFilePath
 			?? Path.Combine(Path.GetTempPath(), "s3envmanager-cache",
-				$"{options.AppName}_{options.EnvSegment}{(options.IsOverwriteBundle ? "_overwrite" : string.Empty)}.enc");
+				$"{options.AppName}_{options.EnvSegment}" +
+				$"{(options.IsOverwriteBundle ? "_overwrite" : string.Empty)}.enc");
 
 		var s3Config = new AmazonS3Config();
 		if (options.Region is not null)
@@ -97,7 +98,8 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 		GetObjectResponse response;
 		try
 		{
-			response = await _s3.GetObjectAsync(_options.Bucket, _objectKey, cancellationToken).ConfigureAwait(false);
+			response = await _s3.GetObjectAsync(_options.Bucket, _objectKey, cancellationToken)
+				.ConfigureAwait(false);
 		}
 		catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
 		{
@@ -123,7 +125,8 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 		}
 	}
 
-	private async Task ApplyEncryptedContentAsync(string encryptedContent, CancellationToken cancellationToken)
+	private async Task ApplyEncryptedContentAsync(
+		string encryptedContent, CancellationToken cancellationToken)
 	{
 		var values = await SopsEnvelopeCodec.DecryptAsAppAsync(encryptedContent, _kms, cancellationToken)
 			.ConfigureAwait(false);
@@ -172,7 +175,8 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 
 			try
 			{
-				var metadata = await _s3.GetObjectMetadataAsync(_options.Bucket, _objectKey, cancellationToken)
+				var metadata = await _s3.GetObjectMetadataAsync(
+					_options.Bucket, _objectKey, cancellationToken)
 					.ConfigureAwait(false);
 				var etag = metadata.ETag?.Trim('"');
 				if (etag == _lastETag)
@@ -246,7 +250,8 @@ public sealed class S3EnvManagerConfigurationProvider : ConfigurationProvider, I
 			}
 			// 평문이 아니라 sops로 암호화된 원본 그대로 캐싱한다 - 디스크 탈취에도 안전해야
 			// 한다는 전제를 이 캐시 파일에도 유지한다.
-			await File.WriteAllTextAsync(_localCachePath, encryptedContent, cancellationToken).ConfigureAwait(false);
+			await File.WriteAllTextAsync(_localCachePath, encryptedContent, cancellationToken)
+				.ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{

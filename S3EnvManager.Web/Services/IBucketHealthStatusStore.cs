@@ -15,5 +15,6 @@ public sealed class BucketHealthStatusStore : IBucketHealthStatusStore
 
 	public void Set(BucketHealthReport report) => _reports[report.Bucket] = report;
 
-	public IReadOnlyCollection<BucketHealthReport> GetAll() => _reports.Values.OrderBy(r => r.Bucket).ToList();
+	public IReadOnlyCollection<BucketHealthReport> GetAll() =>
+		_reports.Values.OrderBy(r => r.Bucket).ToList();
 }

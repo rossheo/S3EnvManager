@@ -3,13 +3,15 @@ using S3EnvManager.Database;
 
 namespace S3EnvManager.Web.Services;
 
-public sealed class PrimaryStorageSettingsStore(ApplicationDbContext db, TimeProvider timeProvider) : IPrimaryStorageSettingsStore
+public sealed class PrimaryStorageSettingsStore(
+	ApplicationDbContext db, TimeProvider timeProvider) : IPrimaryStorageSettingsStore
 {
 	public async Task SaveAsync(
 		string? region, string? bucket, CancellationToken cancellationToken = default)
 	{
 		var existing = await db.PrimaryStorageSettings.SingleOrDefaultAsync(
-			s => s.Id == Database.Models.PrimaryStorageSettings.SingletonId, cancellationToken).ConfigureAwait(false);
+			s => s.Id == Database.Models.PrimaryStorageSettings.SingletonId,
+			cancellationToken).ConfigureAwait(false);
 		if (existing is null)
 		{
 			db.PrimaryStorageSettings.Add(new Database.Models.PrimaryStorageSettings
@@ -31,7 +33,8 @@ public sealed class PrimaryStorageSettingsStore(ApplicationDbContext db, TimePro
 	public async Task<StorageEndpointSettings?> GetAsync(CancellationToken cancellationToken = default)
 	{
 		var entry = await db.PrimaryStorageSettings.AsNoTracking()
-			.SingleOrDefaultAsync(s => s.Id == Database.Models.PrimaryStorageSettings.SingletonId, cancellationToken)
+			.SingleOrDefaultAsync(
+				s => s.Id == Database.Models.PrimaryStorageSettings.SingletonId, cancellationToken)
 			.ConfigureAwait(false);
 		return entry is null ? null : new StorageEndpointSettings(entry.Region);
 	}
@@ -39,7 +42,8 @@ public sealed class PrimaryStorageSettingsStore(ApplicationDbContext db, TimePro
 	public async Task<string?> GetLastProvisionedBucketAsync(CancellationToken cancellationToken = default)
 	{
 		var entry = await db.PrimaryStorageSettings.AsNoTracking()
-			.SingleOrDefaultAsync(s => s.Id == Database.Models.PrimaryStorageSettings.SingletonId, cancellationToken)
+			.SingleOrDefaultAsync(
+				s => s.Id == Database.Models.PrimaryStorageSettings.SingletonId, cancellationToken)
 			.ConfigureAwait(false);
 		return entry?.Bucket;
 	}

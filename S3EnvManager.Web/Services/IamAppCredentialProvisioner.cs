@@ -33,7 +33,8 @@ public sealed class IamAppCredentialProvisioner(IAmazonIdentityManagementService
 			new CreateAccessKeyRequest { UserName = userName }, cancellationToken)
 			.ConfigureAwait(false);
 
-		return new ProvisionedCredential(accessKey.AccessKey.AccessKeyId, accessKey.AccessKey.SecretAccessKey);
+		return new ProvisionedCredential(
+			accessKey.AccessKey.AccessKeyId, accessKey.AccessKey.SecretAccessKey);
 	}
 
 	public async Task ReapplyPolicyAsync(

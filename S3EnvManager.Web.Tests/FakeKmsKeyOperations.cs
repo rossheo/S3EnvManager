@@ -64,7 +64,8 @@ public sealed class FakeKmsKeyOperations : IKmsKeyOperations
 		return Task.FromResult(entry.PlaintextKey);
 	}
 
-	private static byte[] Store(string cmkArn, byte[] plaintextKey, IReadOnlyDictionary<string, string> context)
+	private static byte[] Store(
+		string cmkArn, byte[] plaintextKey, IReadOnlyDictionary<string, string> context)
 	{
 		var id = Interlocked.Increment(ref nextId);
 		WrappedById[id] = new Wrapped(cmkArn, plaintextKey, new Dictionary<string, string>(context));

@@ -17,7 +17,8 @@ public sealed class OverridableAwsCredentials(
 
 		if (fallbackOverrideStore?.Get() is { } fallbackValue)
 		{
-			return new ImmutableCredentials(fallbackValue.AccessKeyId, fallbackValue.SecretAccessKey, token: null);
+			return new ImmutableCredentials(
+				fallbackValue.AccessKeyId, fallbackValue.SecretAccessKey, token: null);
 		}
 
 #pragma warning disable CS0618 // FallbackCredentialsFactory is obsolete but its replacement

@@ -50,6 +50,7 @@ public sealed class AwsKmsKeyOperations(IAmazonKeyManagementService client) : IK
 		return response.Plaintext.ToArray();
 	}
 
-	private static Dictionary<string, string> ToMutableDictionary(IReadOnlyDictionary<string, string> source) =>
+	private static Dictionary<string, string> ToMutableDictionary(
+		IReadOnlyDictionary<string, string> source) =>
 		new(source);
 }

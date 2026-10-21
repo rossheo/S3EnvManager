@@ -17,7 +17,8 @@ public sealed class AmazonS3ClientProvider(
 	public IAmazonS3 GetClient()
 	{
 		var current = primaryStorageOverride.Get()
-			?? throw new InvalidOperationException("주 저장소가 아직 설정되지 않았습니다. /settings/bootstrap에서 자동 프로비저닝을 실행하세요.");
+			?? throw new InvalidOperationException(
+				"주 저장소가 아직 설정되지 않았습니다. /settings/bootstrap에서 자동 프로비저닝을 실행하세요.");
 
 		lock (_lock)
 		{

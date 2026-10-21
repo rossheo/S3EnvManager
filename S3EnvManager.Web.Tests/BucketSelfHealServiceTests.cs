@@ -20,7 +20,8 @@ public class BucketSelfHealServiceTests
 
 		var bucket = "fake-bucket-" + Guid.NewGuid().ToString("N")[..8];
 		var s3 = new FakeBucketComplianceOperations();
-		var service = new BucketSelfHealService(s3, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
+		var service = new BucketSelfHealService(
+			s3, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 
 		var first = await service.HealAsync(bucket);
 		Assert.True(first.VersioningEnabled);
@@ -55,7 +56,8 @@ public class BucketSelfHealServiceTests
 		var s3 = new FakeBucketComplianceOperations();
 		s3.SeedExistingLifecycleRule(bucket);
 
-		var service = new BucketSelfHealService(s3, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
+		var service = new BucketSelfHealService(
+			s3, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var report = await service.HealAsync(bucket);
 
 		Assert.True(report.LifecycleRuleConfigured);
@@ -72,12 +74,14 @@ public class BucketSelfHealServiceTests
 
 		var bucket = "fake-bucket-tls-" + Guid.NewGuid().ToString("N")[..8];
 		var s3 = new FakeBucketComplianceOperations();
-		var policy = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"DenyInsecure\",\"Effect\":\"Deny\"," +
+		var policy = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"DenyInsecure\",\"Effect\":" +
+			"\"Deny\"," +
 			"\"Principal\":\"*\",\"Action\":\"s3:*\",\"Resource\":[\"arn:aws:s3:::" + bucket + "/*\"]," +
 			"\"Condition\":{\"Bool\":{\"aws:SecureTransport\":\"false\"}}}]}";
 		s3.SeedBucketPolicy(bucket, policy);
 
-		var service = new BucketSelfHealService(s3, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
+		var service = new BucketSelfHealService(
+			s3, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var report = await service.HealAsync(bucket);
 
 		Assert.True(report.TlsEnforced);

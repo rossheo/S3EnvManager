@@ -18,7 +18,8 @@ public class DataProtectionCertificateCacheTests
 		var cache = new DataProtectionCertificateCache();
 		var (older, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(
 			1, "pw", new FixedTimeProvider(DateTimeOffset.UtcNow.AddDays(-30)));
-		var (newer, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(1, "pw", TimeProvider.System);
+		var (newer, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(
+			1, "pw", TimeProvider.System);
 
 		cache.ReplaceSnapshot([older, newer]);
 

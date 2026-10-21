@@ -69,7 +69,8 @@ public static class Program
 			var options = CliOptions.Parse(args);
 			using var s3Client = BuildS3Client(options.Region);
 			using var kmsClient = BuildKmsClient(options.Region);
-			var fetcher = new BundleFetcher(new AwsBundleObjectStore(s3Client), new AwsKmsKeyOperations(kmsClient));
+			var fetcher = new BundleFetcher(
+				new AwsBundleObjectStore(s3Client), new AwsKmsKeyOperations(kmsClient));
 
 			return options.Command switch
 			{
@@ -153,7 +154,8 @@ public static class Program
 	private static async Task<Int32> RunGetAllAsync(BundleFetcher fetcher, CliOptions options)
 	{
 		var result = await fetcher.FetchAsync(
-			options.Bucket, options.AppName, options.EnvSegment, options.AllowMissingBundle, CancellationToken.None)
+			options.Bucket, options.AppName, options.EnvSegment, options.AllowMissingBundle,
+			CancellationToken.None)
 			.ConfigureAwait(false);
 		WriteWarningIfAny(result);
 

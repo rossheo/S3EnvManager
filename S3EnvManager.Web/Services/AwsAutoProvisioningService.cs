@@ -31,11 +31,14 @@ public sealed class AwsAutoProvisioningService(
 		var steps = new List<ProvisioningStep>();
 		var failed = false;
 
-		async Task RunStepAsync(string name, Func<Task<(ProvisioningStepStatus Status, string Detail)>> action)
+		async Task RunStepAsync(
+			string name, Func<Task<(ProvisioningStepStatus Status, string Detail)>> action)
 		{
 			if (failed)
 			{
-				steps.Add(new ProvisioningStep(name, ProvisioningStepStatus.SkippedDueToEarlierFailure, "이전 단계 실패로 건너뜀"));
+				steps.Add(
+					new ProvisioningStep(
+						name, ProvisioningStepStatus.SkippedDueToEarlierFailure, "이전 단계 실패로 건너뜀"));
 				return;
 			}
 			try
@@ -75,7 +78,8 @@ public sealed class AwsAutoProvisioningService(
 		await RunStepAsync("primary(admin) CMK 확인/생성", async () =>
 		{
 			var (arn, status, detail) = await EnsureCmkAsync(
-				CmkRole.Admin, PrimaryAlias, "S3EnvManager primary(admin) CMK", cancellationToken).ConfigureAwait(false);
+				CmkRole.Admin, PrimaryAlias, "S3EnvManager primary(admin) CMK",
+				cancellationToken).ConfigureAwait(false);
 			primaryKeyArn = arn;
 			return (status, detail);
 		}).ConfigureAwait(false);
@@ -83,7 +87,8 @@ public sealed class AwsAutoProvisioningService(
 		await RunStepAsync("app-facing CMK 확인/생성", async () =>
 		{
 			var (arn, status, detail) = await EnsureCmkAsync(
-				CmkRole.App, AppFacingAlias, "S3EnvManager app-facing CMK", cancellationToken).ConfigureAwait(false);
+				CmkRole.App, AppFacingAlias, "S3EnvManager app-facing CMK",
+				cancellationToken).ConfigureAwait(false);
 			appKeyArn = arn;
 			return (status, detail);
 		}).ConfigureAwait(false);
@@ -133,7 +138,8 @@ public sealed class AwsAutoProvisioningService(
 
 		await RunStepAsync("부트스트랩 app Access Key 확인/발급", async () =>
 		{
-			var existing = await credentialStore.GetAsync(CmkRole.App, cancellationToken).ConfigureAwait(false);
+			var existing = await credentialStore.GetAsync(CmkRole.App, cancellationToken)
+				.ConfigureAwait(false);
 			if (existing.Status == BootstrapCredentialStatus.Available)
 			{
 				return (ProvisioningStepStatus.AlreadyProvisioned, "이미 저장된 자격증명이 있음");
@@ -156,14 +162,16 @@ public sealed class AwsAutoProvisioningService(
 			}
 			catch (Amazon.IdentityManagement.Model.LimitExceededException)
 			{
-				var existingKeyIds = await appIdentity.ListAccessKeyIdsAsync(cancellationToken).ConfigureAwait(false);
+				var existingKeyIds = await appIdentity.ListAccessKeyIdsAsync(cancellationToken)
+					.ConfigureAwait(false);
 				return (ProvisioningStepStatus.Failed,
 					$"Access Key가 이미 {existingKeyIds.Count}개(AWS 최대 2개) 있어 새로 발급할 수 없습니다 - " +
 					$"저장소 밖에서 발급된 키({string.Join(", ", existingKeyIds)})가 있는지 확인하고 정리한 뒤 다시 시도하세요.");
 			}
 
 			await credentialStore.SaveAsync(
-				CmkRole.App, issued.AccessKeyId, issued.SecretAccessKey, cancellationToken).ConfigureAwait(false);
+				CmkRole.App, issued.AccessKeyId, issued.SecretAccessKey,
+				cancellationToken).ConfigureAwait(false);
 			appCredentialOverride.Set(issued.AccessKeyId, issued.SecretAccessKey);
 			return (ProvisioningStepStatus.Done, issued.AccessKeyId);
 		}).ConfigureAwait(false);
@@ -181,10 +189,12 @@ public sealed class AwsAutoProvisioningService(
 				{
 					if (!request.CreateBucketIfMissing)
 					{
-						return (ProvisioningStepStatus.Failed, $"버킷 '{request.Bucket}'이(가) 없습니다 - 자동 생성을 켜거나 먼저 만들어 두세요.");
+						return (ProvisioningStepStatus.Failed,
+							$"버킷 '{request.Bucket}'이(가) 없습니다 - 자동 생성을 켜거나 먼저 만들어 두세요.");
 					}
 					await s3Client.PutBucketAsync(
-						new PutBucketRequest { BucketName = request.Bucket, UseClientRegion = true }, cancellationToken)
+						new PutBucketRequest { BucketName = request.Bucket, UseClientRegion = true },
+						cancellationToken)
 						.ConfigureAwait(false);
 				}
 
@@ -236,13 +246,15 @@ public sealed class AwsAutoProvisioningService(
 				$"CMK 레지스트리에 이미 등록된 활성 {role} CMK를 승계: {activeRegistered.Arn}");
 		}
 
-		var existingByAlias = await kmsAdmin.FindKeyArnByAliasAsync(alias, cancellationToken).ConfigureAwait(false);
+		var existingByAlias = await kmsAdmin.FindKeyArnByAliasAsync(alias, cancellationToken)
+			.ConfigureAwait(false);
 		if (existingByAlias is not null)
 		{
 			return (existingByAlias, ProvisioningStepStatus.AlreadyProvisioned, existingByAlias);
 		}
 
-		var created = await kmsAdmin.CreateKeyAsync(description, KmsAliasConventions.ManagedTag, cancellationToken)
+		var created = await kmsAdmin.CreateKeyAsync(
+			description, KmsAliasConventions.ManagedTag, cancellationToken)
 			.ConfigureAwait(false);
 		await kmsAdmin.EnableRotationAsync(created, cancellationToken).ConfigureAwait(false);
 		await kmsAdmin.EnsureAliasAsync(alias, created, cancellationToken).ConfigureAwait(false);

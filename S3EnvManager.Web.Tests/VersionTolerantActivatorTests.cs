@@ -30,7 +30,8 @@ public class VersionTolerantActivatorTests
 		activator.CreateInstance(typeof(object), staleTypeName);
 
 		Assert.Equal(
-			"S3EnvManager.Web.Services.CachedCertificateXmlDecryptor, S3EnvManager.Web", inner.ReceivedTypeName);
+			"S3EnvManager.Web.Services.CachedCertificateXmlDecryptor, S3EnvManager.Web",
+			inner.ReceivedTypeName);
 	}
 
 	[Fact]
@@ -40,7 +41,8 @@ public class VersionTolerantActivatorTests
 		var activator = new VersionTolerantActivator(inner);
 		const string frameworkTypeName =
 			"Microsoft.AspNetCore.DataProtection.XmlEncryption.EncryptedXmlDecryptor, " +
-			"Microsoft.AspNetCore.DataProtection, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60";
+			"Microsoft.AspNetCore.DataProtection, Version=10.0.0.0, Culture=neutral, " +
+			"PublicKeyToken=adb9793829ddae60";
 
 		activator.CreateInstance(typeof(object), frameworkTypeName);
 

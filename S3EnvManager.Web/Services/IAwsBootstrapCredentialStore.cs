@@ -6,7 +6,8 @@ namespace S3EnvManager.Web.Services;
 public interface IAwsBootstrapCredentialStore
 {
 	Task SaveAsync(
-		CmkRole role, string accessKeyId, string secretAccessKey, CancellationToken cancellationToken = default);
+		CmkRole role, string accessKeyId, string secretAccessKey,
+		CancellationToken cancellationToken = default);
 
 	// "저장된 적 없음"과 "저장은 됐는데 못 읽음"을 반드시 구분해서 돌려준다 - 둘을 null 하나로
 	// 뭉개면 호출자가 파괴적으로 오동작한다(AwsAutoProvisioningService가 Access Key를 새로

@@ -36,11 +36,13 @@ public class OverwritePriorityTests
 		app.Envs.Add(devEnv);
 		db.Apps.Add(app);
 		await db.SaveChangesAsync();
-		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System)
+			.SaveAsync(null, TestBucket);
 
 		var bundleService = new SecretBundleService(
 			CreateDbContext(), new FakeSecretObjectStore(), kms, kms,
-			new AuditLogger(CreateDbContext(), TimeProvider.System), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
+			new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 
 		var baseOutcome = await bundleService.SaveAsync(
 			devEnv.Id, new Dictionary<string, string>(), null,

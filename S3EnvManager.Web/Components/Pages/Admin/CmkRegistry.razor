@@ -71,10 +71,13 @@ else
 						<MudTh></MudTh>
 					</HeaderContent>
 					<RowTemplate>
-						<MudTd DataLabel="등록일">@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</MudTd>
+						<MudTd DataLabel="등록일">
+							@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+						</MudTd>
 						<MudTd DataLabel="ARN">
 							<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-								<MudText Typo="Typo.body2" Style="font-family: monospace; word-break: break-all;">
+								<MudText Typo="Typo.body2"
+									Style="font-family: monospace; word-break: break-all;">
 									@context.Arn
 								</MudText>
 								<MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
@@ -91,8 +94,8 @@ else
 						<MudTd>
 							@if (context.Status == CmkStatus.Secondary)
 							{
-								<MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mr-1"
-									OnClick="@(() => PromoteAsync(context))">
+								<MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+									Class="mr-1" OnClick="@(() => PromoteAsync(context))">
 									활성으로 승격
 								</MudButton>
 								<MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
@@ -162,7 +165,8 @@ else
 		_creating[role] = true;
 		try
 		{
-			var description = $"S3EnvManager {RoleLabel(role)} CMK ({TimeProvider.GetUtcNow():yyyy-MM-dd} CMK 레지스트리에서 생성)";
+			var description = $"S3EnvManager {RoleLabel(role)} CMK " +
+				$"({TimeProvider.GetUtcNow():yyyy-MM-dd} CMK 레지스트리에서 생성)";
 			var arn = await KmsKeyAdministration.CreateKeyAsync(description, KmsAliasConventions.ManagedTag);
 			await KmsKeyAdministration.EnableRotationAsync(arn);
 
@@ -183,7 +187,8 @@ else
 
 	private async Task PromoteAsync(CmkRegistration registration)
 	{
-		var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", $"이 CMK를 활성으로 승격할까요?\n{registration.Arn}");
+		var confirmed = await JsRuntime.InvokeAsync<bool>(
+			"confirm", $"이 CMK를 활성으로 승격할까요?\n{registration.Arn}");
 		if (!confirmed)
 		{
 			return;
@@ -260,7 +265,8 @@ else
 
 		DecryptCacheAdmin.Clear();
 		var actorUserId = await GetCurrentUserIdAsync();
-		await AuditLogger.LogAsync(AuditEventTypes.DecryptCacheCleared, actorUserId, appId: null, details: null);
+		await AuditLogger.LogAsync(
+			AuditEventTypes.DecryptCacheCleared, actorUserId, appId: null, details: null);
 		Snackbar.Add("Decrypt 캐시를 비웠습니다.", Severity.Success);
 	}
 

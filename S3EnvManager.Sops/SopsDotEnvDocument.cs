@@ -107,7 +107,8 @@ public sealed partial class SopsDotEnvDocument
 				CiphertextBlob: Convert.FromBase64String(fields.GetValueOrDefault("enc", string.Empty)),
 				CreatedAt: DateTimeOffset.Parse(
 					fields["created_at"], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal),
-				EncryptionContext: (IReadOnlyDictionary<string, string>?)context ?? new Dictionary<string, string>()));
+				EncryptionContext:
+					(IReadOnlyDictionary<string, string>?)context ?? new Dictionary<string, string>()));
 		}
 
 		document.LastModified = DateTimeOffset.Parse(

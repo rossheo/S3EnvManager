@@ -34,14 +34,16 @@ public class DataKeyRotationTests
 		{
 			KeyId = Guid.NewGuid(),
 			CiphertextBlob =
-				(await kms.GenerateDataKeyAsync(adminCmk.Arn, new Dictionary<string, string>())).CiphertextBlob,
+				(await kms.GenerateDataKeyAsync(
+					adminCmk.Arn, new Dictionary<string, string>())).CiphertextBlob,
 			CmkId = adminCmk.CmkId,
 			CreatedAt = DateTimeOffset.UtcNow.AddDays(-15),
 		};
 		db.DataKeyGenerations.Add(oldGeneration);
 		await db.SaveChangesAsync();
 
-		await DataKeyRotationService.RotateIfDueAsync(CreateDbContext(), kms, auditLogger, TimeProvider.System);
+		await DataKeyRotationService.RotateIfDueAsync(
+			CreateDbContext(), kms, auditLogger, TimeProvider.System);
 
 		await using var verifyDb = CreateDbContext();
 		var generations = await verifyDb.DataKeyGenerations.AsNoTracking()
@@ -52,7 +54,8 @@ public class DataKeyRotationTests
 		Assert.NotEqual(oldGeneration.KeyId, generations[0].KeyId);
 
 		var log = await verifyDb.AuditLogs.SingleAsync(a =>
-			a.EventType == AuditEventTypes.DataKeyRotated && a.Details!.Contains(generations[0].KeyId.ToString()));
+			a.EventType == AuditEventTypes.DataKeyRotated && a.Details!.Contains(
+				generations[0].KeyId.ToString()));
 		Assert.Contains(adminCmk.Arn, log.Details);
 	}
 
@@ -76,14 +79,16 @@ public class DataKeyRotationTests
 		{
 			KeyId = Guid.NewGuid(),
 			CiphertextBlob =
-				(await kms.GenerateDataKeyAsync(adminCmk.Arn, new Dictionary<string, string>())).CiphertextBlob,
+				(await kms.GenerateDataKeyAsync(
+					adminCmk.Arn, new Dictionary<string, string>())).CiphertextBlob,
 			CmkId = adminCmk.CmkId,
 			CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
 		};
 		db.DataKeyGenerations.Add(recentGeneration);
 		await db.SaveChangesAsync();
 
-		await DataKeyRotationService.RotateIfDueAsync(CreateDbContext(), kms, auditLogger, TimeProvider.System);
+		await DataKeyRotationService.RotateIfDueAsync(
+			CreateDbContext(), kms, auditLogger, TimeProvider.System);
 
 		await using var verifyDb = CreateDbContext();
 		var generations = await verifyDb.DataKeyGenerations.AsNoTracking()
@@ -112,7 +117,8 @@ public class DataKeyRotationTests
 		{
 			KeyId = Guid.NewGuid(),
 			CiphertextBlob =
-				(await kms.GenerateDataKeyAsync(adminCmk.Arn, new Dictionary<string, string>())).CiphertextBlob,
+				(await kms.GenerateDataKeyAsync(
+					adminCmk.Arn, new Dictionary<string, string>())).CiphertextBlob,
 			CmkId = adminCmk.CmkId,
 			CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
 		};
@@ -133,7 +139,8 @@ public class DataKeyRotationTests
 		Assert.NotEqual(recentGeneration.KeyId, generations[0].KeyId);
 
 		var log = await verifyDb.AuditLogs.SingleAsync(a =>
-			a.EventType == AuditEventTypes.DataKeyRotated && a.Details!.Contains(generations[0].KeyId.ToString()));
+			a.EventType == AuditEventTypes.DataKeyRotated && a.Details!.Contains(
+				generations[0].KeyId.ToString()));
 		Assert.Equal(actorUserId, log.ActorUserId);
 	}
 
@@ -180,7 +187,8 @@ public class DataKeyRotationTests
 
 		await using var verifyDb = CreateDbContext();
 		var log = await verifyDb.AuditLogs
-			.Where(a => a.EventType == AuditEventTypes.DataKeyRotationIntervalChanged && a.ActorUserId == actorUserId)
+			.Where(a => a.EventType == AuditEventTypes.DataKeyRotationIntervalChanged
+				&& a.ActorUserId == actorUserId)
 			.OrderByDescending(a => a.OccurredAt).FirstAsync();
 		Assert.Contains("\"newDays\":30", log.Details);
 	}
@@ -196,13 +204,16 @@ public class DataKeyRotationTests
 		await db.Database.ExecuteSqlRawAsync("DELETE FROM \"DataKeyGenerations\"");
 	}
 
-	private static async Task<CmkRegistration> RegisterAndPromoteDedicatedAdminCmkAsync(FakeKmsKeyOperations kms)
+	private static async Task<CmkRegistration> RegisterAndPromoteDedicatedAdminCmkAsync(
+		FakeKmsKeyOperations kms)
 	{
 		var arn = $"arn:aws:kms:ap-northeast-2:000000000000:key/fake-{Guid.NewGuid():N}";
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), new FakeAppCredentialProvisioner(),
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new FakeAppCredentialProvisioner(),
 			new FakeSecretObjectStore(), kms, new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), new FakeKmsKeyAdministration(), TimeProvider.System);
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+			new FakeKmsKeyAdministration(), TimeProvider.System);
 		var registration = await registryService.RegisterAsync(CmkRole.Admin, arn);
 		if (registration.Status != CmkStatus.Active)
 		{

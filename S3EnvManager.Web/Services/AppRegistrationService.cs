@@ -7,7 +7,8 @@ namespace S3EnvManager.Web.Services;
 public sealed class AppRegistrationService(
 	ApplicationDbContext db, IBucketSelfHealService bucketSelfHeal,
 	IBucketHealthStatusStore bucketHealthStatusStore,
-	IPrimaryStorageSettingsStore primaryStorageSettingsStore, IAuditLogger auditLogger, TimeProvider timeProvider)
+	IPrimaryStorageSettingsStore primaryStorageSettingsStore, IAuditLogger auditLogger,
+	TimeProvider timeProvider)
 	: IAppRegistrationService
 {
 	private static readonly EnvName[] FixedEnvNames = [EnvName.Dev, EnvName.Staging, EnvName.Product];

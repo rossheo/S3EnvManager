@@ -52,7 +52,8 @@ public sealed class AppCredentialService(
 
 		var details = System.Text.Json.JsonSerializer.Serialize(
 			new { accessKeyId = credential.AccessKeyId }, AuditJsonOptions.Default);
-		await auditLogger.LogAsync(AuditEventTypes.CredentialIssued, actorUserId, appId, details, cancellationToken)
+		await auditLogger.LogAsync(
+			AuditEventTypes.CredentialIssued, actorUserId, appId, details, cancellationToken)
 			.ConfigureAwait(false);
 
 		return (credential, provisioned.SecretAccessKey);
@@ -83,7 +84,8 @@ public sealed class AppCredentialService(
 			return;
 		}
 
-		await provisioner.RevokeAccessKeyAsync(credential.App!.Name, credential.AccessKeyId, cancellationToken)
+		await provisioner.RevokeAccessKeyAsync(
+			credential.App!.Name, credential.AccessKeyId, cancellationToken)
 			.ConfigureAwait(false);
 		credential.RevokedAt = timeProvider.GetUtcNow();
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

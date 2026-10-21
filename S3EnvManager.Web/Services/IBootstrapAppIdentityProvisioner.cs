@@ -6,7 +6,8 @@ public interface IBootstrapAppIdentityProvisioner
 {
 	Task<string> EnsureUserAsync(CancellationToken cancellationToken = default);
 
-	Task PutPolicyAsync(IReadOnlyCollection<string> appCmkArns, CancellationToken cancellationToken = default);
+	Task PutPolicyAsync(
+		IReadOnlyCollection<string> appCmkArns, CancellationToken cancellationToken = default);
 
 	// 부트스트랩 IAM 사용자가 아직 없으면 예외 없이 false를 반환하는 best-effort 버전.
 	Task<bool> TryPutPolicyIfProvisionedAsync(

@@ -5,7 +5,8 @@ using S3EnvManager.Database;
 namespace S3EnvManager.Web.Services;
 
 public sealed class UserRoleService(
-	ApplicationDbContext db, UserManager<ApplicationUser> userManager, IAuditLogger auditLogger, TimeProvider timeProvider)
+	ApplicationDbContext db, UserManager<ApplicationUser> userManager, IAuditLogger auditLogger,
+	TimeProvider timeProvider)
 	: IUserRoleService
 {
 	public async Task<List<UserWithRole>> ListAsync(CancellationToken cancellationToken = default)
@@ -44,11 +45,13 @@ public sealed class UserRoleService(
 		var rolesToRemove = currentRoles.Where(r => r != roleName).ToList();
 		if (rolesToRemove.Count > 0)
 		{
-			var removeResult = await userManager.RemoveFromRolesAsync(user, rolesToRemove).ConfigureAwait(false);
+			var removeResult = await userManager.RemoveFromRolesAsync(user, rolesToRemove)
+				.ConfigureAwait(false);
 			if (!removeResult.Succeeded)
 			{
 				throw new InvalidOperationException(
-					$"기존 역할을 해제하지 못했습니다: {string.Join(", ", removeResult.Errors.Select(e => e.Description))}");
+					"기존 역할을 해제하지 못했습니다: " +
+					string.Join(", ", removeResult.Errors.Select(e => e.Description)));
 			}
 		}
 		if (!currentRoles.Contains(roleName))
@@ -84,7 +87,8 @@ public sealed class UserRoleService(
 		var user = await userManager.FindByIdAsync(userId).ConfigureAwait(false)
 			?? throw new InvalidOperationException("사용자를 찾을 수 없습니다.");
 
-		var result = await userManager.SetLockoutEndDateAsync(user, lockedOut ? DateTimeOffset.MaxValue : null)
+		var result = await userManager.SetLockoutEndDateAsync(
+			user, lockedOut ? DateTimeOffset.MaxValue : null)
 			.ConfigureAwait(false);
 		if (!result.Succeeded)
 		{

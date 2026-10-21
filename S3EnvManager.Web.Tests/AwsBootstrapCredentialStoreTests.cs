@@ -21,7 +21,8 @@ public class AwsBootstrapCredentialStoreTests
 	private static IAwsBootstrapCredentialStore CreateStore(
 		ApplicationDbContext db, IDataProtectionProvider dataProtectionProvider) =>
 		new AwsBootstrapCredentialStore(
-			db, dataProtectionProvider, NullLogger<AwsBootstrapCredentialStore>.Instance, TimeProvider.System);
+			db, dataProtectionProvider, NullLogger<AwsBootstrapCredentialStore>.Instance,
+			TimeProvider.System);
 
 	[Fact]
 	public async Task SaveAndGet_RoundTrips_PerRole()

@@ -17,12 +17,14 @@ public sealed class AwsBootstrapCredentialStore(
 		dataProtectionProvider.CreateProtector("S3EnvManager.AwsBootstrapCredential.v1");
 
 	public async Task SaveAsync(
-		CmkRole role, string accessKeyId, string secretAccessKey, CancellationToken cancellationToken = default)
+		CmkRole role, string accessKeyId, string secretAccessKey,
+		CancellationToken cancellationToken = default)
 	{
 		var protectedAccessKeyId = _protector.Protect(accessKeyId);
 		var protectedSecretAccessKey = _protector.Protect(secretAccessKey);
 
-		var existing = await db.AwsBootstrapCredentials.SingleOrDefaultAsync(c => c.Role == role, cancellationToken)
+		var existing = await db.AwsBootstrapCredentials.SingleOrDefaultAsync(
+			c => c.Role == role, cancellationToken)
 			.ConfigureAwait(false);
 		if (existing is null)
 		{
@@ -75,7 +77,8 @@ public sealed class AwsBootstrapCredentialStore(
 
 	public async Task ClearAsync(CmkRole role, CancellationToken cancellationToken = default)
 	{
-		var existing = await db.AwsBootstrapCredentials.SingleOrDefaultAsync(c => c.Role == role, cancellationToken)
+		var existing = await db.AwsBootstrapCredentials.SingleOrDefaultAsync(
+			c => c.Role == role, cancellationToken)
 			.ConfigureAwait(false);
 		if (existing is not null)
 		{

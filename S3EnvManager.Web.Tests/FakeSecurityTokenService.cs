@@ -49,7 +49,8 @@ public sealed class FakeSecurityTokenService : IAmazonSecurityTokenService
 		GetFederationTokenRequest request, CancellationToken cancellationToken = default) =>
 		throw new NotSupportedException();
 
-	public Task<GetSessionTokenResponse> GetSessionTokenAsync(CancellationToken cancellationToken = default) =>
+	public Task<GetSessionTokenResponse> GetSessionTokenAsync(
+		CancellationToken cancellationToken = default) =>
 		throw new NotSupportedException();
 
 	public Task<GetSessionTokenResponse> GetSessionTokenAsync(
@@ -60,7 +61,8 @@ public sealed class FakeSecurityTokenService : IAmazonSecurityTokenService
 		GetWebIdentityTokenRequest request, CancellationToken cancellationToken = default) =>
 		throw new NotSupportedException();
 
-	public Amazon.Runtime.Endpoints.Endpoint DetermineServiceOperationEndpoint(AmazonWebServiceRequest request) =>
+	public Amazon.Runtime.Endpoints.Endpoint DetermineServiceOperationEndpoint(
+		AmazonWebServiceRequest request) =>
 		throw new NotSupportedException();
 
 	public AssumeRoleImmutableCredentials CredentialsFromAssumeRoleAuthentication(
@@ -72,11 +74,13 @@ public sealed class FakeSecurityTokenService : IAmazonSecurityTokenService
 		throw new NotSupportedException();
 
 	public SAMLImmutableCredentials CredentialsFromSAMLAuthentication(
-		string principalArn, string roleArn, string samlAssertion, TimeSpan duration, ICredentials userCredentials) =>
+		string principalArn, string roleArn, string samlAssertion, TimeSpan duration,
+		ICredentials userCredentials) =>
 		throw new NotSupportedException();
 
 	public Task<SAMLImmutableCredentials> CredentialsFromSAMLAuthenticationAsync(
-		string principalArn, string roleArn, string samlAssertion, TimeSpan duration, ICredentials userCredentials) =>
+		string principalArn, string roleArn, string samlAssertion, TimeSpan duration,
+		ICredentials userCredentials) =>
 		throw new NotSupportedException();
 
 	public AssumeRoleImmutableCredentials CredentialsFromAssumeRoleWithWebIdentityAuthentication(

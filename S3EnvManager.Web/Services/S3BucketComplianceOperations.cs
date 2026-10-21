@@ -8,9 +8,11 @@ public sealed class S3BucketComplianceOperations(IAmazonS3ClientProvider s3Clien
 {
 	private IAmazonS3 s3Client => s3ClientProvider.GetClient();
 
-	public async Task<bool> IsVersioningEnabledAsync(string bucketName, CancellationToken cancellationToken = default)
+	public async Task<bool> IsVersioningEnabledAsync(
+		string bucketName, CancellationToken cancellationToken = default)
 	{
-		var current = await s3Client.GetBucketVersioningAsync(bucketName, cancellationToken).ConfigureAwait(false);
+		var current = await s3Client.GetBucketVersioningAsync(bucketName, cancellationToken)
+			.ConfigureAwait(false);
 		return current.VersioningConfig?.Status == VersionStatus.Enabled;
 	}
 
@@ -87,11 +89,13 @@ public sealed class S3BucketComplianceOperations(IAmazonS3ClientProvider s3Clien
 		}
 		catch (AmazonS3Exception ex) when (ex.ErrorCode == "NotImplemented")
 		{
-			throw new BucketOperationNotSupportedException("이 스토리지는 Object Ownership Controls GET을 지원하지 않습니다.");
+			throw new BucketOperationNotSupportedException(
+				"이 스토리지는 Object Ownership Controls GET을 지원하지 않습니다.");
 		}
 	}
 
-	public async Task EnforceObjectOwnershipAsync(string bucketName, CancellationToken cancellationToken = default)
+	public async Task EnforceObjectOwnershipAsync(
+		string bucketName, CancellationToken cancellationToken = default)
 	{
 		try
 		{
@@ -100,17 +104,22 @@ public sealed class S3BucketComplianceOperations(IAmazonS3ClientProvider s3Clien
 				BucketName = bucketName,
 				OwnershipControls = new OwnershipControls
 				{
-					Rules = [new OwnershipControlsRule { ObjectOwnership = ObjectOwnership.BucketOwnerEnforced }],
+					Rules =
+					[
+						new OwnershipControlsRule { ObjectOwnership = ObjectOwnership.BucketOwnerEnforced },
+					],
 				},
 			}, cancellationToken).ConfigureAwait(false);
 		}
 		catch (AmazonS3Exception ex) when (ex.ErrorCode is "NotImplemented" or "MalformedXML")
 		{
-			throw new BucketOperationNotSupportedException("이 스토리지는 Object Ownership Controls PUT을 지원하지 않습니다.");
+			throw new BucketOperationNotSupportedException(
+				"이 스토리지는 Object Ownership Controls PUT을 지원하지 않습니다.");
 		}
 	}
 
-	public async Task<bool> HasLifecycleRuleAsync(string bucketName, CancellationToken cancellationToken = default)
+	public async Task<bool> HasLifecycleRuleAsync(
+		string bucketName, CancellationToken cancellationToken = default)
 	{
 		try
 		{
@@ -125,7 +134,8 @@ public sealed class S3BucketComplianceOperations(IAmazonS3ClientProvider s3Clien
 	}
 
 	public Task AddNoncurrentVersionExpirationRuleAsync(
-		string bucketName, string ruleId, Int32 noncurrentDays, CancellationToken cancellationToken = default) =>
+		string bucketName, string ruleId, Int32 noncurrentDays,
+		CancellationToken cancellationToken = default) =>
 		s3Client.PutLifecycleConfigurationAsync(new PutLifecycleConfigurationRequest
 		{
 			BucketName = bucketName,
@@ -150,11 +160,13 @@ public sealed class S3BucketComplianceOperations(IAmazonS3ClientProvider s3Clien
 			},
 		}, cancellationToken);
 
-	public async Task<string?> GetBucketPolicyAsync(string bucketName, CancellationToken cancellationToken = default)
+	public async Task<string?> GetBucketPolicyAsync(
+		string bucketName, CancellationToken cancellationToken = default)
 	{
 		try
 		{
-			var response = await s3Client.GetBucketPolicyAsync(bucketName, cancellationToken).ConfigureAwait(false);
+			var response = await s3Client.GetBucketPolicyAsync(bucketName, cancellationToken)
+				.ConfigureAwait(false);
 			return response.Policy;
 		}
 		catch (AmazonS3Exception ex) when (ex.ErrorCode is "NoSuchBucketPolicy")

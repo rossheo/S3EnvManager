@@ -21,7 +21,8 @@ public static class S3EnvManagerConfigurationBuilderExtensions
 		// 이어지기 쉽다(StockTrade apiservice 배포에서 실제 발생). 명시적으로 설정하지 않은
 		// 경우에만 stderr 출력으로 기본 가시성을 보장한다.
 		options.OnDiagnostic ??= (level, message, exception) =>
-			Console.Error.WriteLine($"[S3EnvManager:{level}] {message}{(exception is null ? string.Empty : $" -> {exception}")}");
+			Console.Error.WriteLine(
+				$"[S3EnvManager:{level}] {message}{(exception is null ? string.Empty : $" -> {exception}")}");
 		return builder.Add(new S3EnvManagerConfigurationSource(options));
 	}
 }

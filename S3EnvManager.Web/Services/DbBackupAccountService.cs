@@ -21,7 +21,8 @@ public sealed class DbBackupAccountService(
 		// 다만 GRANT는 멱등적이고 값을 바꾸지 않으므로, 스키마 변경/수동 REVOKE 등으로 권한이
 		// 드리프트됐을 때를 대비해 매 기동마다 재확인/재부여한다(self-heal).
 		var alreadyExists = await db.DbBackupAccountCredentials
-			.AnyAsync(c => c.Id == DbBackupAccountCredential.SingletonId, cancellationToken).ConfigureAwait(false);
+			.AnyAsync(c => c.Id == DbBackupAccountCredential.SingletonId, cancellationToken)
+			.ConfigureAwait(false);
 		if (alreadyExists)
 		{
 			// best-effort self-heal이다 - 권한 재부여가 실패해도(일시적 DB 장애, 권한 부족 등)
@@ -108,7 +109,8 @@ public sealed class DbBackupAccountService(
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
 		await auditLogger.LogAsync(AuditEventTypes.DbBackupAccountRotated, actorUserId: null, appId: null,
-			details: System.Text.Json.JsonSerializer.Serialize(new { username = RoleName }, AuditJsonOptions.Default),
+			details: System.Text.Json.JsonSerializer.Serialize(
+				new { username = RoleName }, AuditJsonOptions.Default),
 			cancellationToken).ConfigureAwait(false);
 	}
 
@@ -142,7 +144,8 @@ public sealed class DbBackupAccountService(
 		await db.Database.ExecuteSqlRawAsync(
 			$"GRANT USAGE ON SCHEMA public TO \"{RoleName}\"", cancellationToken).ConfigureAwait(false);
 		await db.Database.ExecuteSqlRawAsync(
-			$"GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{RoleName}\"", cancellationToken).ConfigureAwait(false);
+			$"GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{RoleName}\"",
+			cancellationToken).ConfigureAwait(false);
 		await db.Database.ExecuteSqlRawAsync(
 			$"GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO \"{RoleName}\"",
 			cancellationToken).ConfigureAwait(false);
@@ -167,7 +170,8 @@ public sealed class DbBackupAccountService(
 		string? actorUserId = null, CancellationToken cancellationToken = default)
 	{
 		var credential = await db.DbBackupAccountCredentials.AsNoTracking()
-			.SingleAsync(c => c.Id == DbBackupAccountCredential.SingletonId, cancellationToken).ConfigureAwait(false);
+			.SingleAsync(c => c.Id == DbBackupAccountCredential.SingletonId, cancellationToken)
+			.ConfigureAwait(false);
 		var password = await secretKeyCipher.DecryptAsync(
 			credential.EncryptedPassword, credential.DataKeyId, cancellationToken).ConfigureAwait(false);
 

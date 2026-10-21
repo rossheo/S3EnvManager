@@ -117,7 +117,8 @@ public class CliOptionsTests
 	[Fact]
 	public void Parse_GetAll_FormatDotenv_AndAllowMissingBundle()
 	{
-		var options = CliOptions.Parse(["get-all", .. CommonArgs, "--format", "dotenv", "--allow-missing-bundle"]);
+		var options = CliOptions.Parse(
+			["get-all", .. CommonArgs, "--format", "dotenv", "--allow-missing-bundle"]);
 
 		Assert.Equal(OutputFormat.Dotenv, options.Format);
 		Assert.True(options.AllowMissingBundle);

@@ -125,7 +125,8 @@ public sealed class CmkRegistryService(
 				.ConfigureAwait(false);
 
 			var target = await db.CmkRegistrations
-				.FromSqlInterpolated($"SELECT * FROM \"CmkRegistrations\" WHERE \"CmkId\" = {cmkId} FOR UPDATE")
+				.FromSqlInterpolated(
+					$"SELECT * FROM \"CmkRegistrations\" WHERE \"CmkId\" = {cmkId} FOR UPDATE")
 				.SingleAsync(cancellationToken).ConfigureAwait(false);
 
 			if (target.Status == CmkStatus.Active)
@@ -135,7 +136,8 @@ public sealed class CmkRegistryService(
 			}
 
 			var roleRegistrations = await db.CmkRegistrations
-				.FromSqlInterpolated($"SELECT * FROM \"CmkRegistrations\" WHERE \"Role\" = {target.Role} FOR UPDATE")
+				.FromSqlInterpolated(
+					$"SELECT * FROM \"CmkRegistrations\" WHERE \"Role\" = {target.Role} FOR UPDATE")
 				.ToListAsync(cancellationToken).ConfigureAwait(false);
 
 			var previousActive = roleRegistrations.SingleOrDefault(c => c.Status == CmkStatus.Active);
@@ -229,7 +231,8 @@ public sealed class CmkRegistryService(
 				foreach (var kind in AllKinds)
 				{
 					await RewrapEntryIfWrappedByAsync(
-						bucket, app, env, kind, entryIndex: 1, target.Arn, activeAppCmk.Arn, cancellationToken)
+						bucket, app, env, kind, entryIndex: 1, target.Arn, activeAppCmk.Arn,
+						cancellationToken)
 						.ConfigureAwait(false);
 				}
 			}
@@ -243,7 +246,8 @@ public sealed class CmkRegistryService(
 			{
 				foreach (var kind in AllKinds)
 				{
-					var arn = await GetCurrentEntryArnAsync(bucket, app, env, kind, entryIndex: 1, cancellationToken)
+					var arn = await GetCurrentEntryArnAsync(
+						bucket, app, env, kind, entryIndex: 1, cancellationToken)
 						.ConfigureAwait(false);
 					if (arn == target.Arn)
 					{
@@ -294,7 +298,8 @@ public sealed class CmkRegistryService(
 				foreach (var kind in AllKinds)
 				{
 					await RewrapEntryIfWrappedByAsync(
-						bucket, app, env, kind, entryIndex: 0, target.Arn, activeAdminCmk.Arn, cancellationToken)
+						bucket, app, env, kind, entryIndex: 0, target.Arn, activeAdminCmk.Arn,
+						cancellationToken)
 						.ConfigureAwait(false);
 				}
 			}
@@ -328,7 +333,8 @@ public sealed class CmkRegistryService(
 			{
 				foreach (var kind in AllKinds)
 				{
-					var currentArn = await GetCurrentEntryArnAsync(bucket, app, env, kind, entryIndex: 0, cancellationToken)
+					var currentArn = await GetCurrentEntryArnAsync(
+						bucket, app, env, kind, entryIndex: 0, cancellationToken)
 						.ConfigureAwait(false);
 					if (currentArn == target.Arn)
 					{
@@ -336,7 +342,8 @@ public sealed class CmkRegistryService(
 					}
 
 					var key = SecretObjectKeys.Locate(app, env, kind);
-					var versions = await store.ListVersionsAsync(bucket, key, cancellationToken: cancellationToken)
+					var versions = await store.ListVersionsAsync(
+						bucket, key, cancellationToken: cancellationToken)
 						.ConfigureAwait(false);
 					foreach (var version in versions.Where(v => !v.IsLatest))
 					{
@@ -357,7 +364,8 @@ public sealed class CmkRegistryService(
 		if (remainingDependents > 0 || remainingGenerations > 0)
 		{
 			throw new InvalidOperationException(
-				$"재래핑/삭제 후에도 이 CMK를 참조하는 대상이 남아 있어({remainingDependents}개 번들, {remainingGenerations}개 데이터 키 세대) " +
+				"재래핑/삭제 후에도 이 CMK를 참조하는 대상이 남아 있어" +
+				$"({remainingDependents}개 번들, {remainingGenerations}개 데이터 키 세대) " +
 				"제거를 중단했습니다. 다시 시도하세요.");
 		}
 
@@ -385,7 +393,8 @@ public sealed class CmkRegistryService(
 			await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken)
 				.ConfigureAwait(false);
 			var lockedTarget = await db.CmkRegistrations
-				.FromSqlInterpolated($"SELECT * FROM \"CmkRegistrations\" WHERE \"CmkId\" = {target.CmkId} FOR UPDATE")
+				.FromSqlInterpolated(
+					$"SELECT * FROM \"CmkRegistrations\" WHERE \"CmkId\" = {target.CmkId} FOR UPDATE")
 				.SingleAsync(cancellationToken).ConfigureAwait(false);
 			if (lockedTarget.Status == CmkStatus.Active)
 			{
@@ -446,7 +455,8 @@ public sealed class CmkRegistryService(
 			}
 
 			var document = SopsDotEnvDocument.Parse(stored.Content);
-			if (document.KmsEntries.Count <= entryIndex || document.KmsEntries[entryIndex].Arn != cmkToRemoveArn)
+			if (document.KmsEntries.Count <= entryIndex
+				|| document.KmsEntries[entryIndex].Arn != cmkToRemoveArn)
 			{
 				await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 				return;
@@ -456,7 +466,8 @@ public sealed class CmkRegistryService(
 			var dataKey = await kms.DecryptAsync(
 				cmkToRemoveArn, entry.CiphertextBlob, entry.EncryptionContext, cancellationToken)
 				.ConfigureAwait(false);
-			var newCiphertext = await kms.EncryptAsync(targetArn, dataKey, entry.EncryptionContext, cancellationToken)
+			var newCiphertext = await kms.EncryptAsync(
+				targetArn, dataKey, entry.EncryptionContext, cancellationToken)
 				.ConfigureAwait(false);
 			document.KmsEntries[entryIndex] = new SopsKmsEntry(
 				targetArn, newCiphertext, timeProvider.GetUtcNow(), entry.EncryptionContext);
@@ -464,7 +475,8 @@ public sealed class CmkRegistryService(
 			// LastModified/EncryptedMac은 절대 건드리지 않는다 - MAC이 LastModified를 AAD로
 			// 쓰므로, 바꾸면 이후 모든 복호화가 MAC 검증에 실패한다.
 			var newContent = document.Serialize();
-			var putResult = await store.PutAsync(bucket, key, newContent, cancellationToken: cancellationToken)
+			var putResult = await store.PutAsync(
+				bucket, key, newContent, cancellationToken: cancellationToken)
 				.ConfigureAwait(false);
 
 			if (kind == SecretBundleKind.Base)
@@ -497,7 +509,8 @@ public sealed class CmkRegistryService(
 				bucket, key, version.VersionId, entryIndex: 0, cancellationToken).ConfigureAwait(false);
 			if (arn == cmkToRemoveArn)
 			{
-				await store.DeleteVersionAsync(bucket, key, version.VersionId, cancellationToken).ConfigureAwait(false);
+				await store.DeleteVersionAsync(bucket, key, version.VersionId, cancellationToken)
+					.ConfigureAwait(false);
 				deletedCount++;
 			}
 		}
@@ -583,7 +596,8 @@ public sealed class CmkRegistryService(
 			var bucket = await GetPrimaryBucketAsync(cancellationToken).ConfigureAwait(false);
 			foreach (var app in apps)
 			{
-				await appCredentialProvisioner.ReapplyPolicyAsync(app.Name, bucket, appCmkArns, cancellationToken)
+				await appCredentialProvisioner.ReapplyPolicyAsync(
+					app.Name, bucket, appCmkArns, cancellationToken)
 					.ConfigureAwait(false);
 			}
 		}

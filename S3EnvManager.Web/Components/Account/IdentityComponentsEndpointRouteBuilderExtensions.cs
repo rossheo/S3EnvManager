@@ -15,7 +15,8 @@ namespace Microsoft.AspNetCore.Routing;
 
 internal static class IdentityComponentsEndpointRouteBuilderExtensions
 {
-	public static IEndpointConventionBuilder MapAdditionalIdentityEndpoints(this IEndpointRouteBuilder endpoints)
+	public static IEndpointConventionBuilder MapAdditionalIdentityEndpoints(
+		this IEndpointRouteBuilder endpoints)
 	{
 		ArgumentNullException.ThrowIfNull(endpoints);
 
@@ -60,7 +61,8 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
 			var user = await userManager.GetUserAsync(context.User);
 			if (user is null)
 			{
-				return Results.NotFound($"Unable to load user with ID '{userManager.GetUserId(context.User)}'.");
+				return Results.NotFound(
+					$"Unable to load user with ID '{userManager.GetUserId(context.User)}'.");
 			}
 
 			var userId = await userManager.GetUserIdAsync(user);
@@ -118,7 +120,8 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
 			var user = await userManager.GetUserAsync(context.User);
 			if (user is null)
 			{
-				return Results.NotFound($"Unable to load user with ID '{userManager.GetUserId(context.User)}'.");
+				return Results.NotFound(
+					$"Unable to load user with ID '{userManager.GetUserId(context.User)}'.");
 			}
 
 			var userId = await userManager.GetUserIdAsync(user);

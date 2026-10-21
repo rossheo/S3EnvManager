@@ -34,7 +34,8 @@ public class UserNotificationSettingsServiceTests
 		Assert.Null(error);
 
 		await using var verifyDb = CreateDbContext();
-		var verifyService = new UserNotificationSettingsService(verifyDb, DataProtection, TimeProvider.System);
+		var verifyService = new UserNotificationSettingsService(
+			verifyDb, DataProtection, TimeProvider.System);
 		var loaded = await verifyService.GetAsync(user.Id);
 		Assert.Equal("https://discord.com/api/webhooks/12345/abcXYZ", loaded.WebhookUrl);
 		Assert.Equal(7, loaded.NotifyDaysBeforeExpiration);

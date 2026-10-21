@@ -309,8 +309,10 @@ public class SharedSecretReferenceServiceTests
 			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 
 		public SharedSecretService CreateSharedSecretService() => new(
-			CreateDbContext(), new AppSecretKeyCipher(CreateDbContext(), Kms, new DataKeyCache(), TimeProvider.System),
-			new AuditLogger(CreateDbContext(), TimeProvider.System), CreateBundleService(), TimeProvider.System);
+			CreateDbContext(),
+			new AppSecretKeyCipher(CreateDbContext(), Kms, new DataKeyCache(), TimeProvider.System),
+			new AuditLogger(CreateDbContext(), TimeProvider.System), CreateBundleService(),
+			TimeProvider.System);
 
 		public SharedSecretReferenceService CreateReferenceService() => new(
 			CreateDbContext(), CreateBundleService(),

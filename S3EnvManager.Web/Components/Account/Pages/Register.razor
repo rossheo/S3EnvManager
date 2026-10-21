@@ -154,7 +154,8 @@ else
 		var shouldBeInitialAdministrator = false;
 		if (await InitialAdminSetupTokenService.IsAdminBootstrapPendingAsync(UserManager))
 		{
-			var generatedToken = await InitialAdminSetupTokenService.EnsureGeneratedTokenAsync(Db, TimeProvider);
+			var generatedToken = await InitialAdminSetupTokenService.EnsureGeneratedTokenAsync(
+				Db, TimeProvider);
 			shouldBeInitialAdministrator = InitialAdminSetupTokenService.MatchesEitherToken(
 				Input.SetupToken, generatedToken, InitialAdminSetupOptions.Value);
 		}

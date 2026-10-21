@@ -10,7 +10,8 @@ public sealed class AwsKmsKeyAdministration(IAmazonKeyManagementService client) 
 	{
 		try
 		{
-			var response = await client.DescribeKeyAsync(new DescribeKeyRequest { KeyId = alias }, cancellationToken)
+			var response = await client.DescribeKeyAsync(
+				new DescribeKeyRequest { KeyId = alias }, cancellationToken)
 				.ConfigureAwait(false);
 
 			// DescribeKey는 Disabled/PendingDeletion 키에도 성공한다 - 별칭이 삭제 예약된 키를 계속
@@ -26,7 +27,8 @@ public sealed class AwsKmsKeyAdministration(IAmazonKeyManagementService client) 
 	}
 
 	public async Task<string> CreateKeyAsync(
-		string description, IReadOnlyDictionary<string, string> tags, CancellationToken cancellationToken = default)
+		string description, IReadOnlyDictionary<string, string> tags,
+		CancellationToken cancellationToken = default)
 	{
 		var response = await client.CreateKeyAsync(new CreateKeyRequest
 		{
@@ -55,7 +57,8 @@ public sealed class AwsKmsKeyAdministration(IAmazonKeyManagementService client) 
 			// 아니면(FindKeyArnByAliasAsync가 이걸 "없음"으로 보고 우릴 여기까지 불러온 것이다) 죽은
 			// 키를 계속 가리키게 놔두면, 다음 프로비저닝도 매번 이 죽은 별칭을 못 찾고 새 키를 만들어
 			// 별칭 없이 고아로 남기는 걸 반복한다 - 방금 만든 키로 옮겨 붙여 그 고리를 끊는다.
-			var current = await client.DescribeKeyAsync(new DescribeKeyRequest { KeyId = alias }, cancellationToken)
+			var current = await client.DescribeKeyAsync(
+				new DescribeKeyRequest { KeyId = alias }, cancellationToken)
 				.ConfigureAwait(false);
 			if (current.KeyMetadata.KeyState != KeyState.Enabled)
 			{
@@ -76,7 +79,8 @@ public sealed class AwsKmsKeyAdministration(IAmazonKeyManagementService client) 
 			cancellationToken);
 
 	public Task TagKeyAsync(
-		string keyArn, IReadOnlyDictionary<string, string> tags, CancellationToken cancellationToken = default) =>
+		string keyArn, IReadOnlyDictionary<string, string> tags,
+		CancellationToken cancellationToken = default) =>
 		client.TagResourceAsync(new TagResourceRequest
 		{
 			KeyId = keyArn,

@@ -38,7 +38,8 @@ public sealed class FakeSecretObjectStore : ISecretObjectStore
 			return Task.FromResult<StoredSecretObject?>(null);
 		}
 		var latest = versions[^1];
-		return Task.FromResult<StoredSecretObject?>(new StoredSecretObject(latest.Content, latest.ETag, latest.VersionId));
+		return Task.FromResult<StoredSecretObject?>(
+			new StoredSecretObject(latest.Content, latest.ETag, latest.VersionId));
 	}
 
 	public Task<PutSecretObjectResult> PutAsync(
@@ -91,7 +92,8 @@ public sealed class FakeSecretObjectStore : ISecretObjectStore
 	{
 		var versions = VersionsFor(bucket, key);
 		var result = versions.Select((v, i) => new SecretObjectVersion(
-			v.VersionId, i == versions.Count - 1, v.LastModified, v.ETag, includeActorEmail ? v.ActorEmail : null))
+			v.VersionId, i == versions.Count - 1, v.LastModified, v.ETag,
+			includeActorEmail ? v.ActorEmail : null))
 			.ToList();
 		if (maxVersions is { } limit && result.Count > limit)
 		{

@@ -24,13 +24,15 @@ public sealed class AwsBootstrapAppIdentityProvisioner(
 		var userName = await ResolveUserNameAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
-			var created = await iam.CreateUserAsync(new CreateUserRequest { UserName = userName }, cancellationToken)
+			var created = await iam.CreateUserAsync(
+				new CreateUserRequest { UserName = userName }, cancellationToken)
 				.ConfigureAwait(false);
 			return created.User.Arn;
 		}
 		catch (EntityAlreadyExistsException)
 		{
-			var existing = await iam.GetUserAsync(new GetUserRequest { UserName = userName }, cancellationToken)
+			var existing = await iam.GetUserAsync(
+				new GetUserRequest { UserName = userName }, cancellationToken)
 				.ConfigureAwait(false);
 			return existing.User.Arn;
 		}
@@ -65,7 +67,8 @@ public sealed class AwsBootstrapAppIdentityProvisioner(
 		}
 	}
 
-	public async Task<ProvisionedCredential> IssueAccessKeyAsync(CancellationToken cancellationToken = default)
+	public async Task<ProvisionedCredential> IssueAccessKeyAsync(
+		CancellationToken cancellationToken = default)
 	{
 		var userName = await ResolveUserNameAsync(cancellationToken).ConfigureAwait(false);
 		var response = await iam.CreateAccessKeyAsync(
@@ -73,7 +76,8 @@ public sealed class AwsBootstrapAppIdentityProvisioner(
 		return new ProvisionedCredential(response.AccessKey.AccessKeyId, response.AccessKey.SecretAccessKey);
 	}
 
-	public async Task<IReadOnlyList<string>> ListAccessKeyIdsAsync(CancellationToken cancellationToken = default)
+	public async Task<IReadOnlyList<string>> ListAccessKeyIdsAsync(
+		CancellationToken cancellationToken = default)
 	{
 		var userName = await ResolveUserNameAsync(cancellationToken).ConfigureAwait(false);
 		var response = await iam.ListAccessKeysAsync(

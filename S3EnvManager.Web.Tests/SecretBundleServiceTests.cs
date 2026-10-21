@@ -294,7 +294,8 @@ public class SecretBundleServiceTests
 		}
 
 		var fixture = await Fixture.CreateAsync();
-		var (app, env) = await fixture.RegisterAppAsync("historynoactor-" + Guid.NewGuid().ToString("N")[..8]);
+		var (app, env) = await fixture.RegisterAppAsync(
+			"historynoactor-" + Guid.NewGuid().ToString("N")[..8]);
 		var service = fixture.CreateService();
 
 		var outcome = await service.SaveAsync(
@@ -319,7 +320,8 @@ public class SecretBundleServiceTests
 		var normalService = fixture.CreateService();
 
 		var initialValues = new Dictionary<string, string> { ["A"] = "1" };
-		var initial = await normalService.SaveAsync(env.Id, new Dictionary<string, string>(), null, initialValues);
+		var initial = await normalService.SaveAsync(
+			env.Id, new Dictionary<string, string>(), null, initialValues);
 		var initialSuccess = Assert.IsType<SaveSuccess>(initial);
 
 		var session = await normalService.LoadForEditAsync(env.Id);
@@ -353,7 +355,8 @@ public class SecretBundleServiceTests
 		var normalService = fixture.CreateService();
 
 		var initialValues = new Dictionary<string, string> { ["A"] = "1" };
-		var initial = await normalService.SaveAsync(env.Id, new Dictionary<string, string>(), null, initialValues);
+		var initial = await normalService.SaveAsync(
+			env.Id, new Dictionary<string, string>(), null, initialValues);
 		var initialSuccess = Assert.IsType<SaveSuccess>(initial);
 
 		var session = await normalService.LoadForEditAsync(env.Id);
@@ -465,7 +468,8 @@ public class SecretBundleServiceTests
 			return (app, env);
 		}
 
-		public SecretBundleService CreateService(Func<ISecretObjectStore, ISecretObjectStore>? wrapStore = null)
+		public SecretBundleService CreateService(
+			Func<ISecretObjectStore, ISecretObjectStore>? wrapStore = null)
 		{
 			var db = CreateDbContext();
 			ISecretObjectStore store = Store;
@@ -474,7 +478,8 @@ public class SecretBundleServiceTests
 				store = wrapStore(store);
 			}
 			return new SecretBundleService(
-				db, store, Kms, Kms, new AuditLogger(db, TimeProvider.System), new PrimaryStorageSettingsStore(db, TimeProvider.System), TimeProvider.System);
+				db, store, Kms, Kms, new AuditLogger(db, TimeProvider.System),
+				new PrimaryStorageSettingsStore(db, TimeProvider.System), TimeProvider.System);
 		}
 
 		private static async Task<string> GetOrCreateActiveCmkAsync(ApplicationDbContext db, CmkRole role)
@@ -504,6 +509,8 @@ public class SecretBundleServiceTests
 		public static ApplicationDbContext CreateDbContextForAssertions() => CreateDbContext();
 
 		private static ApplicationDbContext CreateDbContext() =>
-			new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(PostgresConnectionString).Options);
+			new(
+				new DbContextOptionsBuilder<ApplicationDbContext>()
+					.UseNpgsql(PostgresConnectionString).Options);
 	}
 }

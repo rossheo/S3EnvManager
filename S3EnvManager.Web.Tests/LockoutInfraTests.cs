@@ -30,7 +30,8 @@ public class LockoutInfraTests
 		var email = "lockout-" + Guid.NewGuid().ToString("N")[..8] + "@test.local";
 		var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
 		var createResult = await userManager.CreateAsync(user, "Test-Password-1234");
-		Assert.True(createResult.Succeeded, string.Join(", ", createResult.Errors.Select(e => e.Description)));
+		Assert.True(
+			createResult.Succeeded, string.Join(", ", createResult.Errors.Select(e => e.Description)));
 
 		try
 		{
@@ -73,7 +74,8 @@ public class LockoutInfraTests
 		var email = "signin-lockout-" + Guid.NewGuid().ToString("N")[..8] + "@test.local";
 		var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
 		var createResult = await userManager.CreateAsync(user, "Test-Password-1234");
-		Assert.True(createResult.Succeeded, string.Join(", ", createResult.Errors.Select(e => e.Description)));
+		Assert.True(
+			createResult.Succeeded, string.Join(", ", createResult.Errors.Select(e => e.Description)));
 
 		try
 		{

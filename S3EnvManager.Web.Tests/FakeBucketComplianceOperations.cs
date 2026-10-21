@@ -35,7 +35,8 @@ public sealed class FakeBucketComplianceOperations : IBucketComplianceOperations
 
 	public void SeedBucketPolicy(string bucketName, string policy) => State(bucketName).Policy = policy;
 
-	public Task<bool> IsVersioningEnabledAsync(string bucketName, CancellationToken cancellationToken = default) =>
+	public Task<bool> IsVersioningEnabledAsync(
+		string bucketName, CancellationToken cancellationToken = default) =>
 		Task.FromResult(State(bucketName).VersioningEnabled);
 
 	public Task EnableVersioningAsync(string bucketName, CancellationToken cancellationToken = default)
@@ -68,7 +69,8 @@ public sealed class FakeBucketComplianceOperations : IBucketComplianceOperations
 		return Task.CompletedTask;
 	}
 
-	public Task<bool> HasLifecycleRuleAsync(string bucketName, CancellationToken cancellationToken = default) =>
+	public Task<bool> HasLifecycleRuleAsync(
+		string bucketName, CancellationToken cancellationToken = default) =>
 		Task.FromResult(State(bucketName).HasLifecycleRule);
 
 	public Task AddNoncurrentVersionExpirationRuleAsync(
@@ -79,6 +81,7 @@ public sealed class FakeBucketComplianceOperations : IBucketComplianceOperations
 		return Task.CompletedTask;
 	}
 
-	public Task<string?> GetBucketPolicyAsync(string bucketName, CancellationToken cancellationToken = default) =>
+	public Task<string?> GetBucketPolicyAsync(
+		string bucketName, CancellationToken cancellationToken = default) =>
 		Task.FromResult(State(bucketName).Policy);
 }

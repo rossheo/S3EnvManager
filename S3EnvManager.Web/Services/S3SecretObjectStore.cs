@@ -132,7 +132,8 @@ public sealed class S3SecretObjectStore(IAmazonS3ClientProvider s3ClientProvider
 		try
 		{
 			var metadata = await s3Client.GetObjectMetadataAsync(
-				new GetObjectMetadataRequest { BucketName = bucket, Key = key, VersionId = versionId }, cancellationToken)
+				new GetObjectMetadataRequest { BucketName = bucket, Key = key, VersionId = versionId },
+				cancellationToken)
 				.ConfigureAwait(false);
 			// MetadataCollection 인덱서는 키가 없으면 예외 대신 null을 돌려준다(AWSSDK.S3 동작).
 			return metadata.Metadata["actor-email"];
@@ -156,7 +157,8 @@ public sealed class S3SecretObjectStore(IAmazonS3ClientProvider s3ClientProvider
 	public Task DeleteVersionAsync(
 		string bucket, string key, string versionId, CancellationToken cancellationToken = default) =>
 		s3Client.DeleteObjectAsync(
-			new DeleteObjectRequest { BucketName = bucket, Key = key, VersionId = versionId }, cancellationToken);
+			new DeleteObjectRequest { BucketName = bucket, Key = key, VersionId = versionId },
+			cancellationToken);
 
 	private static string Unquote(string eTag) => eTag.Trim('"');
 }

@@ -4,7 +4,8 @@ using S3EnvManager.Database;
 namespace S3EnvManager.Web.Services;
 
 public sealed class AppDeletionService(
-	ApplicationDbContext db, IAppCredentialProvisioner provisioner, IAuditLogger auditLogger, TimeProvider timeProvider)
+	ApplicationDbContext db, IAppCredentialProvisioner provisioner, IAuditLogger auditLogger,
+	TimeProvider timeProvider)
 	: IAppDeletionService
 {
 	public async Task DeleteAsync(
@@ -42,7 +43,8 @@ public sealed class AppDeletionService(
 		foreach (var credential in activeCredentials)
 		{
 			var details = System.Text.Json.JsonSerializer.Serialize(
-				new { accessKeyId = credential.AccessKeyId, reason = "AppDeleted" }, AuditJsonOptions.Default);
+				new { accessKeyId = credential.AccessKeyId, reason = "AppDeleted" },
+				AuditJsonOptions.Default);
 			await auditLogger.LogAsync(
 				AuditEventTypes.CredentialRevoked, actorUserId, appId, details, cancellationToken)
 				.ConfigureAwait(false);

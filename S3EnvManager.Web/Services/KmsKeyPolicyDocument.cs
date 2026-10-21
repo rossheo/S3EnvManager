@@ -35,7 +35,8 @@ public static class KmsKeyPolicyDocument
 		""";
 
 	// 앱별 IAM 사용자의 Decrypt는 이 키 정책이 아니라 root-delegation을 통해 앱별 IAM 정책으로 성립한다.
-	public static string BuildAppFacingKeyPolicyJson(string accountId, string adminUserArn, string appUserArn) =>
+	public static string BuildAppFacingKeyPolicyJson(
+		string accountId, string adminUserArn, string appUserArn) =>
 		$$"""
 		{
 		  "Version": "2012-10-17",

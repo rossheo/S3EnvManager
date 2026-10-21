@@ -6,5 +6,6 @@ public interface IAppSecretKeyCipher
 	Task<(byte[] Ciphertext, Guid DataKeyId)> EncryptAsync(
 		string secretKey, CancellationToken cancellationToken = default);
 
-	Task<string> DecryptAsync(byte[] ciphertext, Guid dataKeyId, CancellationToken cancellationToken = default);
+	Task<string> DecryptAsync(
+		byte[] ciphertext, Guid dataKeyId, CancellationToken cancellationToken = default);
 }
