@@ -7,7 +7,8 @@
 	<MudNavLink Href="Account/Manage"
 				Match="NavLinkMatch.All"
 				Icon="@Icons.Material.Filled.Person">Profile</MudNavLink>
-	<MudNavLink Href="Account/Manage/Email" Icon="@Icons.Material.Filled.Email">Email</MudNavLink>
+	@* 이메일 변경은 확인 메일 링크로만 완료되는데 메일 발송기가 NoOp이라 끝낼 수 없다 - 실제
+	   발송기를 붙이기 전까지 메뉴에서 뺀다(Login.razor의 비밀번호 찾기 링크와 같은 이유). *@
 	<MudNavLink Href="Account/Manage/ChangePassword" Icon="@Icons.Material.Filled.Lock">Password</MudNavLink>
 	@if (hasExternalLogins)
 	{

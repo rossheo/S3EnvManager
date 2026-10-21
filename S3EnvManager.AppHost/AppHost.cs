@@ -36,7 +36,7 @@ var migrations = builder.AddProject<Projects.S3EnvManager_MigrationService>("mig
 var awsConfig = builder.AddAWSSDKConfig()
 	.WithRegion(RegionEndpoint.APNortheast2);
 
-var web = builder.AddProject<Projects.S3EnvManager_Web>("web")
+builder.AddProject<Projects.S3EnvManager_Web>("web")
 	.WithEnvironment("DataProtectionCertificate__Password", dataProtectionCertPassword)
 	.WithEnvironment("TZ", "Asia/Seoul")
 	.WithReference(s3EnvManagerDb)

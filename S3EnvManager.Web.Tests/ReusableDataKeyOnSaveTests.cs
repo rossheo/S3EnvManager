@@ -29,7 +29,7 @@ public class ReusableDataKeyOnSaveTests
 		var kms = new FakeKmsKeyOperations();
 		var store = new FakeSecretObjectStore();
 		var appName = "reuse-same-" + Guid.NewGuid().ToString("N")[..8];
-		var (app, baseEnv) = await SetupAppAsync(appName);
+		var (_, baseEnv) = await SetupAppAsync(appName);
 		var service = CreateService(store, kms, reuseEnabled: true);
 
 		var kmsBefore = kms.TotalCalls;
