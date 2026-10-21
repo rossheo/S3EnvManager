@@ -33,7 +33,8 @@ public class AppRegistrationServiceTests
 		new(
 			CreateDbContext(),
 			new BucketSelfHealService(
-				new FakeBucketComplianceOperations(), new AuditLogger(CreateDbContext(), TimeProvider.System),
+				new FakeBucketComplianceOperations(),
+				new AuditLogger(CreateDbContext(), TimeProvider.System),
 				TimeProvider.System),
 			new BucketHealthStatusStore(),
 			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),

@@ -45,7 +45,8 @@ public sealed class FakeBootstrapAppIdentityProvisioner : IBootstrapAppIdentityP
 		return Task.FromResult(new ProvisionedCredential(keyId, "fake-secret-" + keyId));
 	}
 
-	public Task<IReadOnlyList<string>> ListAccessKeyIdsAsync(CancellationToken cancellationToken = default) =>
+	public Task<IReadOnlyList<string>> ListAccessKeyIdsAsync(
+		CancellationToken cancellationToken = default) =>
 		Task.FromResult<IReadOnlyList<string>>([.. accessKeyIds]);
 
 	public Task DeleteAccessKeyAsync(string accessKeyId, CancellationToken cancellationToken = default)

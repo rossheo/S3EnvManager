@@ -61,7 +61,8 @@ public sealed class CachingKmsKeyOperations(
 
 		metrics?.RecordDecryptCacheMiss();
 		metrics?.RecordDecrypt();
-		var plaintext = await inner.DecryptAsync(cmkArn, ciphertextBlob, encryptionContext, cancellationToken)
+		var plaintext = await inner.DecryptAsync(
+			cmkArn, ciphertextBlob, encryptionContext, cancellationToken)
 			.ConfigureAwait(false);
 		cache.Set(cacheKey, plaintext, new MemoryCacheEntryOptions
 		{

@@ -80,7 +80,8 @@ public sealed class DbBackupAccountService(
 
 		var password = GenerateSafePassword();
 		await db.Database.ExecuteSqlRawAsync(
-			$"ALTER ROLE \"{RoleName}\" WITH PASSWORD '{password}'", cancellationToken).ConfigureAwait(false);
+			$"ALTER ROLE \"{RoleName}\" WITH PASSWORD '{password}'",
+			cancellationToken).ConfigureAwait(false);
 #pragma warning restore EF1002
 
 		await ReapplyGrantsAsync(cancellationToken).ConfigureAwait(false);
@@ -163,7 +164,8 @@ public sealed class DbBackupAccountService(
 		var credential = await db.DbBackupAccountCredentials.AsNoTracking()
 			.SingleOrDefaultAsync(c => c.Id == DbBackupAccountCredential.SingletonId, cancellationToken)
 			.ConfigureAwait(false);
-		return credential is null ? null : new DbBackupAccountInfo(credential.Username, credential.RotatedAt);
+		return credential is null ? null : new DbBackupAccountInfo(
+			credential.Username, credential.RotatedAt);
 	}
 
 	public async Task<string> RevealCurrentPasswordAsync(

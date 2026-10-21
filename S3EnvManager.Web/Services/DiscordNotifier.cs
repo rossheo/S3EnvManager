@@ -1,6 +1,7 @@
 namespace S3EnvManager.Web.Services;
 
-public sealed class DiscordNotifier(HttpClient httpClient, ILogger<DiscordNotifier> logger) : IDiscordNotifier
+public sealed class DiscordNotifier(
+	HttpClient httpClient, ILogger<DiscordNotifier> logger) : IDiscordNotifier
 {
 	public async Task SendAsync(
 		string webhookUrl, string content, CancellationToken cancellationToken = default)

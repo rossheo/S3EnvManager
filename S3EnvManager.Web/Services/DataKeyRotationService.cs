@@ -70,7 +70,8 @@ public static class DataKeyRotationService
 				return DataKeyRotationOutcome.NoGenerationsYet;
 			}
 
-			var due = force || timeProvider.GetUtcNow() >= latest.CreatedAt + TimeSpan.FromDays(intervalDays);
+			var due = force || timeProvider.GetUtcNow() >= latest.CreatedAt + TimeSpan.FromDays(
+				intervalDays);
 			if (!due)
 			{
 				await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

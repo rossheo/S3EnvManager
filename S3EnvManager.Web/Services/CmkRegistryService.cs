@@ -15,7 +15,8 @@ public sealed class CmkRegistryService(
 	// DataKeyGeneration 재래핑용 - 원래 wrap이 context 없이 이뤄졌으므로 여기서도 없어야 한다
 	// (KMS는 wrap 시점과 다르면 Decrypt를 거부한다). 근거는 AppSecretKeyCipher.NoContext 주석 참고.
 	private static readonly IReadOnlyDictionary<string, string> NoContext = new Dictionary<string, string>();
-	private static readonly SecretBundleKind[] AllKinds = [SecretBundleKind.Base, SecretBundleKind.Overwrite];
+	private static readonly SecretBundleKind[] AllKinds =
+		[SecretBundleKind.Base, SecretBundleKind.Overwrite];
 
 	// 대기기간을 두는 건 CancelKeyDeletion으로 되돌릴 여지를 남기기 위해서다(AWS 최소값).
 	private const Int32 KeyDeletionPendingWindowDays = 7;
@@ -63,7 +64,8 @@ public sealed class CmkRegistryService(
 			}
 
 			var existingInRole = await db.CmkRegistrations
-				.FromSqlInterpolated($"SELECT * FROM \"CmkRegistrations\" WHERE \"Role\" = {role} FOR UPDATE")
+				.FromSqlInterpolated(
+					$"SELECT * FROM \"CmkRegistrations\" WHERE \"Role\" = {role} FOR UPDATE")
 				.ToListAsync(cancellationToken).ConfigureAwait(false);
 
 			// role에 등록된 CMK가 하나도 없으면 최초 등록이 자동으로 활성이 된다 - 각 role에는
@@ -85,7 +87,8 @@ public sealed class CmkRegistryService(
 			// 전부 AccessDenied로 실패한다 - 태깅 실패 시 쓸 수 없는 CMK를 남기지 않도록 등록을 되돌린다.
 			try
 			{
-				await kmsKeyAdministration.TagKeyAsync(arn, KmsAliasConventions.ManagedTag, cancellationToken)
+				await kmsKeyAdministration.TagKeyAsync(
+					arn, KmsAliasConventions.ManagedTag, cancellationToken)
 					.ConfigureAwait(false);
 			}
 			catch
@@ -382,7 +385,8 @@ public sealed class CmkRegistryService(
 	}
 
 	private async Task RemoveRegistrationAsync(
-		CmkRegistration target, string? actorUserId, object auditDetails, CancellationToken cancellationToken)
+		CmkRegistration target, string? actorUserId, object auditDetails,
+		CancellationToken cancellationToken)
 	{
 		// NpgsqlRetryingExecutionStrategy는 수동 트랜잭션을 재시도 단위 밖에서 여는 것을 허용하지
 		// 않으므로 시작~커밋 전체를 delegate 안에 넣는다.

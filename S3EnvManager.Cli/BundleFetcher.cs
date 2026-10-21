@@ -61,7 +61,8 @@ public sealed class BundleFetcher(IBundleObjectStore store, IKmsKeyOperations km
 		string content;
 		try
 		{
-			content = await store.GetObjectContentAsync(bucket, key, cancellationToken).ConfigureAwait(false);
+			content = await store.GetObjectContentAsync(bucket, key, cancellationToken)
+				.ConfigureAwait(false);
 		}
 		catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
 		{

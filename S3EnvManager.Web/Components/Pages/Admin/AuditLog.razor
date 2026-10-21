@@ -83,7 +83,8 @@
 		var rows = logs.Select(l => new Row(
 			l.OccurredAt,
 			l.EventType,
-			l.ActorUserId is not null && actorEmails.TryGetValue(l.ActorUserId, out var email) ? email : null,
+			l.ActorUserId is not null && actorEmails.TryGetValue(
+				l.ActorUserId, out var email) ? email : null,
 			l.AppId is not null && appNames.TryGetValue(l.AppId.Value, out var name) ? name : null,
 			l.Details)).ToList();
 

@@ -149,7 +149,8 @@ public sealed class S3BucketComplianceOperations(IAmazonS3ClientProvider s3Clien
 						Status = LifecycleRuleStatus.Enabled,
 						Filter = new LifecycleFilter
 						{
-							LifecycleFilterPredicate = new LifecyclePrefixPredicate { Prefix = string.Empty },
+							LifecycleFilterPredicate =
+								new LifecyclePrefixPredicate { Prefix = string.Empty },
 						},
 						NoncurrentVersionExpiration = new LifecycleRuleNoncurrentVersionExpiration
 						{

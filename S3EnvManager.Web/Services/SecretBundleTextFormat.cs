@@ -17,7 +17,8 @@ public static class SecretBundleTextFormat
 		return builder.ToString();
 	}
 
-	public static bool TryParse(string text, out List<KeyValuePair<string, string>> values, out string? error)
+	public static bool TryParse(
+		string text, out List<KeyValuePair<string, string>> values, out string? error)
 	{
 		values = [];
 		var seenKeys = new HashSet<string>(StringComparer.Ordinal);

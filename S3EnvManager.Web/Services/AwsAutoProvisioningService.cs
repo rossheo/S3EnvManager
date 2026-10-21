@@ -62,7 +62,8 @@ public sealed class AwsAutoProvisioningService(
 
 		await RunStepAsync("자격증명 확인(STS)", async () =>
 		{
-			var identity = await sts.GetCallerIdentityAsync(new GetCallerIdentityRequest(), cancellationToken)
+			var identity = await sts.GetCallerIdentityAsync(
+				new GetCallerIdentityRequest(), cancellationToken)
 				.ConfigureAwait(false);
 			accountId = identity.Account;
 			adminUserArn = identity.Arn;
@@ -213,7 +214,8 @@ public sealed class AwsAutoProvisioningService(
 
 			await RunStepAsync("주 저장소 설정 저장", async () =>
 			{
-				await primaryStorageSettingsStore.SaveAsync(request.Region, request.Bucket, cancellationToken)
+				await primaryStorageSettingsStore.SaveAsync(
+					request.Region, request.Bucket, cancellationToken)
 					.ConfigureAwait(false);
 				primaryStorageOverride.Set(new StorageEndpointSettings(request.Region));
 				return (ProvisioningStepStatus.Done, request.Region);
@@ -285,7 +287,8 @@ public sealed class AwsAutoProvisioningService(
 		{
 			try
 			{
-				await kmsAdmin.PutKeyPolicyAsync(keyArn, policyJson, cancellationToken).ConfigureAwait(false);
+				await kmsAdmin.PutKeyPolicyAsync(keyArn, policyJson, cancellationToken)
+					.ConfigureAwait(false);
 				return;
 			}
 			catch (Amazon.KeyManagementService.Model.MalformedPolicyDocumentException) when (attempt < 6)

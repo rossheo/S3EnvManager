@@ -13,7 +13,8 @@ public class ApplicationDbContextDesignTimeFactory : IDesignTimeDbContextFactory
 {
 	public ApplicationDbContext CreateDbContext(string[] args)
 	{
-		var connectionString = Environment.GetEnvironmentVariable("S3ENVMANAGER_MIGRATIONS_CONNECTION_STRING")
+		var connectionString = Environment.GetEnvironmentVariable(
+			"S3ENVMANAGER_MIGRATIONS_CONNECTION_STRING")
 			?? "Host=localhost;Port=55432;Database=s3envmanagerdb;Username=postgres;Password=postgres";
 
 		var services = new ServiceCollection();

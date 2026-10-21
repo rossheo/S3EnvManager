@@ -95,7 +95,8 @@ public sealed class SecretBundleService(
 					.ConfigureAwait(false);
 			}
 
-			var adminArn = await GetActiveCmkArnAsync(CmkRole.Admin, cancellationToken).ConfigureAwait(false);
+			var adminArn = await GetActiveCmkArnAsync(CmkRole.Admin, cancellationToken)
+				.ConfigureAwait(false);
 			var appArn = await GetActiveCmkArnAsync(CmkRole.App, cancellationToken).ConfigureAwait(false);
 
 			// 검증 실패 시 되돌릴 직전 버전을 쓰기 전에 미리 잡아둔다.

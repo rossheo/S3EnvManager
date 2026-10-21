@@ -114,7 +114,8 @@ public static partial class SopsValueCipher
 /// <summary>sops MAC 또는 GCM 태그 검증 실패를 나타낸다 - 값이 위변조되었거나 키가 잘못됐다는 뜻이다.</summary>
 public sealed class CryptographicMacException : Exception
 {
-	public CryptographicMacException(string message, Exception innerException) : base(message, innerException)
+	public CryptographicMacException(
+		string message, Exception innerException) : base(message, innerException)
 	{
 	}
 }

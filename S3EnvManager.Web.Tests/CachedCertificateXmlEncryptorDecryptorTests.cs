@@ -26,7 +26,8 @@ public class CachedCertificateXmlEncryptorDecryptorTests
 	public void Encrypt_ThenDecrypt_ViaDecryptorTypeActivation_RoundTrips()
 	{
 		var cache = new DataProtectionCertificateCache();
-		var (cert, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(1, "pw", TimeProvider.System);
+		var (cert, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(
+			1, "pw", TimeProvider.System);
 		cache.ReplaceSnapshot([cert]);
 
 		var activator = CreateActivator(cache, out var provider);
@@ -83,7 +84,8 @@ public class CachedCertificateXmlEncryptorDecryptorTests
 		var activator = CreateActivator(cache, out var provider);
 		using var _ = provider;
 
-		var (cert, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(1, "pw", TimeProvider.System);
+		var (cert, _, _, _) = DataProtectionCertificateFactory.CreateSelfSigned(
+			1, "pw", TimeProvider.System);
 		var encryptor = new CachedCertificateXmlEncryptor(CreateCacheWith(cert));
 		var encrypted = encryptor.Encrypt(new XElement("secret", "value"));
 

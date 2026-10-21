@@ -114,7 +114,8 @@ public class AppCredentialServiceTests
 			return new AppCredentialService(
 				db, Provisioner, new AppSecretKeyCipher(db, Kms, cache, TimeProvider.System),
 				new AuditLogger(db, TimeProvider.System),
-				new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
+				new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+				TimeProvider.System);
 		}
 
 		private static async Task<string> GetOrCreateActiveCmkAsync(ApplicationDbContext db, CmkRole role)

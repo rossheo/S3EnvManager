@@ -287,7 +287,8 @@ public class AwsAutoProvisioningServiceTests
 			new FakeSecurityTokenService(), kmsAdmin, appIdentity, registryService, credentialStore,
 			new RuntimeAwsCredentialsOverride(), new RuntimeAwsCredentialsOverride(),
 			primaryStorageSettingsStore, new RuntimePrimaryStorageOverride(),
-			new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger, TimeProvider.System),
+			new BucketSelfHealService(
+				new FakeBucketComplianceOperations(), auditLogger, TimeProvider.System),
 			new BucketHealthStatusStore(), auditLogger);
 
 		var report = await service.EnsureProvisionedAsync(

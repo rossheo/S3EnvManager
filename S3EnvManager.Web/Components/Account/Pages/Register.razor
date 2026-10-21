@@ -85,7 +85,8 @@ else
 								계정이 초기 관리자가 됩니다. 비워두거나 값이 틀리면 일반 회원(Guest)으로
 								가입됩니다.
 							</MudAlert>
-							<MudStaticTextField For="@(() => Input.SetupToken)" @bind-Value="Input.SetupToken"
+							<MudStaticTextField For="@(() => Input.SetupToken)"
+												@bind-Value="Input.SetupToken"
 												Label="초기 설정 토큰(선택)" Placeholder="서버 로그에 출력된 값"
 												UserAttributes="@(new() { { "autocomplete", "off" } } )" />
 						</MudItem>
@@ -197,7 +198,8 @@ else
 		}
 		catch
 		{
-			throw new InvalidOperationException($"Can't create an instance of '{nameof(ApplicationUser)}'. " +
+			throw new InvalidOperationException(
+				$"Can't create an instance of '{nameof(ApplicationUser)}'. " +
 				$"Ensure that '{nameof(ApplicationUser)}' is not an abstract class and " +
 				"has a parameterless constructor.");
 		}

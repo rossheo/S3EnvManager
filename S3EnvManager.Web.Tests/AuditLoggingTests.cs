@@ -128,9 +128,13 @@ public class AuditLoggingTests
 
 		await using var db = CreateDbContext();
 		var oldLog = new AuditLog
-			{ Id = Guid.NewGuid(), OccurredAt = DateTimeOffset.UtcNow.AddDays(-181), EventType = "TestOld" };
+		{
+			Id = Guid.NewGuid(), OccurredAt = DateTimeOffset.UtcNow.AddDays(-181), EventType = "TestOld",
+		};
 		var recentLog = new AuditLog
-			{ Id = Guid.NewGuid(), OccurredAt = DateTimeOffset.UtcNow.AddDays(-1), EventType = "TestRecent" };
+		{
+			Id = Guid.NewGuid(), OccurredAt = DateTimeOffset.UtcNow.AddDays(-1), EventType = "TestRecent",
+		};
 		db.AuditLogs.AddRange(oldLog, recentLog);
 		await db.SaveChangesAsync();
 

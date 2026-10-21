@@ -74,7 +74,8 @@ public sealed class FakeBucketComplianceOperations : IBucketComplianceOperations
 		Task.FromResult(State(bucketName).HasLifecycleRule);
 
 	public Task AddNoncurrentVersionExpirationRuleAsync(
-		string bucketName, string ruleId, Int32 noncurrentDays, CancellationToken cancellationToken = default)
+		string bucketName, string ruleId, Int32 noncurrentDays,
+		CancellationToken cancellationToken = default)
 	{
 		AddLifecycleRuleCallCount++;
 		State(bucketName).HasLifecycleRule = true;

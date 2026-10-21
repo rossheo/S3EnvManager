@@ -138,7 +138,8 @@ public sealed class BucketSelfHealService(
 	}
 
 	// 버킷 정책은 단일 JSON 문서라 통째로 덮어쓰면 다른 statement를 지울 위험이 있어 감지만 한다.
-	private async Task<bool> DetectTlsEnforcementAsync(string bucketName, CancellationToken cancellationToken)
+	private async Task<bool> DetectTlsEnforcementAsync(
+		string bucketName, CancellationToken cancellationToken)
 	{
 		var policy = await bucket.GetBucketPolicyAsync(bucketName, cancellationToken).ConfigureAwait(false);
 		return policy is not null && policy.Contains("aws:SecureTransport", StringComparison.Ordinal);

@@ -121,7 +121,8 @@ public sealed class AwsBootstrapAppIdentityProvisioner(
 			awsOptions.Credentials = new BasicAWSCredentials(
 				storedAppCredential.AccessKeyId!, storedAppCredential.SecretAccessKey!);
 			using var sts = awsOptions.CreateServiceClient<IAmazonSecurityTokenService>();
-			var identity = await sts.GetCallerIdentityAsync(new GetCallerIdentityRequest(), cancellationToken)
+			var identity = await sts.GetCallerIdentityAsync(
+				new GetCallerIdentityRequest(), cancellationToken)
 				.ConfigureAwait(false);
 			// arn:aws:iam::<account>:user/<username>
 			var userName = identity.Arn.Split('/').LastOrDefault();

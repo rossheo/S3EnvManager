@@ -32,7 +32,8 @@ public class OutputFormatterTests
 	{
 		var values = new Dictionary<string, string> { ["FOO"] = "line1\nline2" };
 
-		var ex = Assert.Throws<CliException>(() => OutputFormatter.FormatGetAll(values, OutputFormat.Dotenv));
+		var ex = Assert.Throws<CliException>(
+			() => OutputFormatter.FormatGetAll(values, OutputFormat.Dotenv));
 
 		Assert.Equal(ExitCode.OutputFormatError, ex.ExitCode);
 	}

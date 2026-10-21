@@ -71,7 +71,8 @@ public sealed class UserRoleService(
 		if (rolesToRemove.Count > 0 || roleAdded)
 		{
 			var details = System.Text.Json.JsonSerializer.Serialize(
-				new { targetUserId = userId, from = previousRoles, to = roleName }, AuditJsonOptions.Default);
+				new { targetUserId = userId, from = previousRoles, to = roleName },
+				AuditJsonOptions.Default);
 			await auditLogger.LogAsync(
 				AuditEventTypes.UserRoleChanged, actorUserId, appId: null, details, cancellationToken)
 				.ConfigureAwait(false);

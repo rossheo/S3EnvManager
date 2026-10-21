@@ -219,7 +219,8 @@ public class SharedSecretServiceTests
 			new SecretBundleService(
 				CreateDbContext(), new FakeSecretObjectStore(), kms, kms,
 				new AuditLogger(CreateDbContext(), TimeProvider.System),
-				new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System),
+				new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+				TimeProvider.System),
 			TimeProvider.System);
 
 	private static async Task<(App App, Env Env)> RegisterAppAsync()

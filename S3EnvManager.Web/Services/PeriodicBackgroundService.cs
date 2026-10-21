@@ -17,7 +17,8 @@ public abstract class PeriodicBackgroundService(IServiceScopeFactory scopeFactor
 	protected abstract TimeSpan Interval { get; }
 
 	/// <summary>한 주기에 할 일. 스코프는 호출자가 만들고 정리한다.</summary>
-	protected abstract Task ExecuteCycleAsync(IServiceProvider services, CancellationToken cancellationToken);
+	protected abstract Task ExecuteCycleAsync(
+		IServiceProvider services, CancellationToken cancellationToken);
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{

@@ -4,7 +4,8 @@ public sealed record UserNotificationAlertSwitchInfo(string AlertType, bool Enab
 
 public interface IUserNotificationAlertSwitchService
 {
-	Task<bool> IsEnabledAsync(string userId, string alertType, CancellationToken cancellationToken = default);
+	Task<bool> IsEnabledAsync(
+		string userId, string alertType, CancellationToken cancellationToken = default);
 
 	Task<List<UserNotificationAlertSwitchInfo>> ListAsync(
 		string userId, CancellationToken cancellationToken = default);

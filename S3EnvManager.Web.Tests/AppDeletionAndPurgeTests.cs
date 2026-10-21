@@ -148,7 +148,8 @@ public class AppDeletionAndPurgeTests
 		app.DeletedAt = DateTimeOffset.UtcNow.AddDays(-1);
 		await db.SaveChangesAsync();
 		await AppPurgeService.PurgeEligibleAppsAsync(
-			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+			CreateDbContext(), store,
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
 			new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		Assert.NotNull(await store.GetCurrentAsync(TestBucket, objectKey));
 		await using (var verifyDb1 = CreateDbContext())
@@ -159,7 +160,8 @@ public class AppDeletionAndPurgeTests
 		app.DeletedAt = DateTimeOffset.UtcNow.AddDays(-61);
 		await db.SaveChangesAsync();
 		await AppPurgeService.PurgeEligibleAppsAsync(
-			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+			CreateDbContext(), store,
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
 			new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		Assert.Null(await store.GetCurrentAsync(TestBucket, objectKey));
 		Assert.Null(await store.GetCurrentAsync(TestBucket, overwriteObjectKey));

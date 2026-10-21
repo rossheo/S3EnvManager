@@ -78,7 +78,8 @@ public sealed class S3SecretObjectStore(IAmazonS3ClientProvider s3ClientProvider
 		var request = new ListVersionsRequest { BucketName = bucket, Prefix = key };
 		while (true)
 		{
-			var response = await s3Client.ListVersionsAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await s3Client.ListVersionsAsync(request, cancellationToken)
+				.ConfigureAwait(false);
 			// 매칭 오브젝트가 없으면 S3가 빈 리스트가 아니라 Versions 자체를 null로 돌려준다.
 			matching.AddRange((response.Versions ?? [])
 				.Where(v => v.Key == key && v.IsDeleteMarker != true));
@@ -148,7 +149,8 @@ public sealed class S3SecretObjectStore(IAmazonS3ClientProvider s3ClientProvider
 		string bucket, string key, string versionId, CancellationToken cancellationToken = default)
 	{
 		using var response = await s3Client.GetObjectAsync(
-			new GetObjectRequest { BucketName = bucket, Key = key, VersionId = versionId }, cancellationToken)
+			new GetObjectRequest { BucketName = bucket, Key = key, VersionId = versionId },
+			cancellationToken)
 			.ConfigureAwait(false);
 		using var reader = new StreamReader(response.ResponseStream);
 		return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);

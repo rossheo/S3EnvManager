@@ -282,7 +282,8 @@ using (var scope = app.Services.CreateScope())
 	catch (Exception ex)
 	{
 		app.Logger.LogWarning(ex,
-			"AutoProvisioningSelfHeal 기동 시 자동 재확인에 실패했습니다 - 다음 기동이나 /settings/bootstrap에서 수동으로 재시도할 수 있습니다.");
+			"AutoProvisioningSelfHeal 기동 시 자동 재확인에 실패했습니다 - " +
+			"다음 기동이나 /settings/bootstrap에서 수동으로 재시도할 수 있습니다.");
 	}
 
 	// pg_dump 전용 읽기 전용 계정은 최초 설치 시에만 생성한다 - 이미 있으면 회전시키지 않는다
