@@ -13,7 +13,7 @@ public static class SopsEnvelopeCodec
 	/// key=value 목록을 암호화해 sops dotenv 파일 내용을 만든다. 두 CMK를 최소 권한 자격증명
 	/// (admin: GenerateDataKey, app: Encrypt만)으로 호출할 수 있도록 KMS 클라이언트를 role별로
 	/// 분리해서 받는다. 생성된 평문 데이터 키도 함께 반환한다 - 호출자가 직후 자체 검증을 위해
-	/// 다시 KMS Decrypt를 부르지 않고 <see cref="DecryptWithDataKey"/>로 로컬 검증할 수 있도록.
+	/// 다시 KMS Decrypt를 부르지 않고 <see cref="DecryptWithDataKey(string,byte[])"/>로 로컬 검증할 수 있도록.
 	/// </summary>
 	/// <param name="reusableDataKey">이미 감싸둔 데이터 키를 재사용한다(KMS 호출 0회). 재사용
 	/// 여부와 한도는 이 패키지가 정하지 않는다 - 호출자(S3EnvManager.Web)의 정책이다. 넘긴 값이

@@ -1,12 +1,10 @@
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using S3EnvManager.Database;
 using S3EnvManager.Web.Services;
-using Xunit;
 
 namespace S3EnvManager.Web.Tests;
 

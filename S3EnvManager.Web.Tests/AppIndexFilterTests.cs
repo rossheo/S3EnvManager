@@ -1,5 +1,4 @@
 using S3EnvManager.Database.Models;
-using Xunit;
 
 namespace S3EnvManager.Web.Tests;
 

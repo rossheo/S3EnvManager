@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using S3EnvManager.Database;
-using Xunit;
 
 namespace S3EnvManager.Web.Tests;
 

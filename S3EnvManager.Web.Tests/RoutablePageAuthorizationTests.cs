@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using S3EnvManager.Web.Components.Pages;
-using Xunit;
 
 namespace S3EnvManager.Web.Tests;
 

@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using S3EnvManager.Database;
-using S3EnvManager.Database.Models;
-using Xunit;
 
 namespace S3EnvManager.Web.Tests;
 

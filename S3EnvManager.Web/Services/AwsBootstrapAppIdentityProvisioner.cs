@@ -1,4 +1,3 @@
-using Amazon.Extensions.NETCore.Setup;
 using Amazon.IdentityManagement;
 using Amazon.IdentityManagement.Model;
 using Amazon.Runtime;

@@ -1,6 +1,3 @@
-using S3EnvManager.Sops;
-using Xunit;
-
 namespace S3EnvManager.Sops.Tests;
 
 public class SopsEnvelopeCodecTests

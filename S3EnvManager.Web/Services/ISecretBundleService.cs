@@ -1,5 +1,3 @@
-using S3EnvManager.Database.Models;
-
 namespace S3EnvManager.Web.Services;
 
 // base 번들(`{app}/{env}.env`, 1단)과 overwrite 번들(`{app}/{env}.overwrite.env`, 3단 최종

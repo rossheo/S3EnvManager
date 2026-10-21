@@ -1,6 +1,5 @@
 using S3EnvManager.Sops;
 using S3EnvManager.Web.Services;
-using Xunit;
 
 namespace S3EnvManager.Web.Tests;
 

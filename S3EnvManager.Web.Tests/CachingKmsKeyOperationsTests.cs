@@ -3,7 +3,6 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using S3EnvManager.Sops;
 using S3EnvManager.Web.Services;
-using Xunit;
 
 namespace S3EnvManager.Web.Tests;
 

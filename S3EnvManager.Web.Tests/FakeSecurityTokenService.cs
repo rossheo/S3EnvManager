@@ -1,6 +1,5 @@
 using System.Net;
 using Amazon.Runtime;
-using Amazon.Runtime.Credentials.Internal;
 using Amazon.SecurityToken;
 using Amazon.SecurityToken.Model;
 

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using S3EnvManager.Web.Services;
-using Xunit;
 
 namespace S3EnvManager.Web.Tests;
 

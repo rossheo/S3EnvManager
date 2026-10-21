@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using S3EnvManager.Database;
-using S3EnvManager.Database.Models;
 
 namespace S3EnvManager.Web.Services;
 

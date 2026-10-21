@@ -1,6 +1,3 @@
-using S3EnvManager.Web;
-using Xunit;
-
 namespace S3EnvManager.Web.Tests;
 
 /// <summary>Directory.Build.targets의 GitInformation 타겟이 git 브랜치/커밋 해시를 심었는지 확인한다.</summary>

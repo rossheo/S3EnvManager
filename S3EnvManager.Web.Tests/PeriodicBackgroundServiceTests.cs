@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using S3EnvManager.Web.Services;
-using Xunit;
 
 namespace S3EnvManager.Web.Tests;
 

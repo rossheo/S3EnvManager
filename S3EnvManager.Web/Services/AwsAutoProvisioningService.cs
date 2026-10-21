@@ -2,7 +2,6 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.SecurityToken;
 using Amazon.SecurityToken.Model;
-using Microsoft.Extensions.DependencyInjection;
 using S3EnvManager.Database.Models;
 using S3EnvManager.Sops;
 

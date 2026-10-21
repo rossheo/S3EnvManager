@@ -1,5 +1,3 @@
-using System.Net.Http.Json;
-
 namespace S3EnvManager.Web.Services;
 
 public sealed class DiscordNotifier(HttpClient httpClient, ILogger<DiscordNotifier> logger) : IDiscordNotifier

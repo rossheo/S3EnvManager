@@ -47,13 +47,13 @@ public class Worker(
 		hostApplicationLifetime.StopApplication();
 	}
 
-	private async Task EnsureRolesSeededAsync(IServiceProvider sp, CancellationToken ct)
+	private static async Task EnsureRolesSeededAsync(IServiceProvider sp, CancellationToken ct)
 	{
 		var roleManager = sp.GetRequiredService<RoleManager<IdentityRole>>();
 		await IdentityRoleSeeder.EnsureRolesSeededAsync(roleManager);
 	}
 
-	private async Task EnsureDefaultRolesAssignedAsync(IServiceProvider sp, CancellationToken ct)
+	private static async Task EnsureDefaultRolesAssignedAsync(IServiceProvider sp, CancellationToken ct)
 	{
 		var db = sp.GetRequiredService<ApplicationDbContext>();
 		var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
