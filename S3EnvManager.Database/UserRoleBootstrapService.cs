@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace S3EnvManager.Database;
 
@@ -7,15 +8,17 @@ namespace S3EnvManager.Database;
 public static class UserRoleBootstrapService
 {
 	public static async Task EnsureDefaultRolesAssignedAsync(
-		UserManager<ApplicationUser> userManager, CancellationToken cancellationToken = default)
+		ApplicationDbContext db, UserManager<ApplicationUser> userManager,
+		CancellationToken cancellationToken = default)
 	{
-		foreach (var user in userManager.Users.ToList())
+		// 전원에 대해 GetRolesAsync를 부르면 N+1 쿼리가 되므로, 역할 없는 사용자만 한 번에 골라낸다.
+		var rolelessUsers = await db.Users
+			.Where(u => !db.UserRoles.Any(ur => ur.UserId == u.Id))
+			.ToListAsync(cancellationToken)
+			.ConfigureAwait(false);
+		foreach (var user in rolelessUsers)
 		{
-			var roles = await userManager.GetRolesAsync(user);
-			if (roles.Count == 0)
-			{
-				await userManager.AddToRoleAsync(user, IdentityRoleNames.Guest);
-			}
+			await userManager.AddToRoleAsync(user, IdentityRoleNames.Guest).ConfigureAwait(false);
 		}
 	}
 }

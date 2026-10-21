@@ -55,8 +55,9 @@ public class Worker(
 
 	private async Task EnsureDefaultRolesAssignedAsync(IServiceProvider sp, CancellationToken ct)
 	{
+		var db = sp.GetRequiredService<ApplicationDbContext>();
 		var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
-		await UserRoleBootstrapService.EnsureDefaultRolesAssignedAsync(userManager, ct);
+		await UserRoleBootstrapService.EnsureDefaultRolesAssignedAsync(db, userManager, ct);
 	}
 
 	// Web 로그를 놓친 운영자도 이 리소스의 Aspire 대시보드/컨테이너 로그에서 찾을 수 있게 재기록.

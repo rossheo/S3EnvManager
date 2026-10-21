@@ -1,23 +1,29 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using S3EnvManager.Database;
 
 namespace S3EnvManager.Web.Services;
 
-public sealed class UserRoleService(UserManager<ApplicationUser> userManager, IAuditLogger auditLogger)
+public sealed class UserRoleService(
+	ApplicationDbContext db, UserManager<ApplicationUser> userManager, IAuditLogger auditLogger)
 	: IUserRoleService
 {
 	public async Task<List<UserWithRole>> ListAsync(CancellationToken cancellationToken = default)
 	{
-		var users = userManager.Users.ToList();
-		var result = new List<UserWithRole>(users.Count);
-		foreach (var user in users)
-		{
-			var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-			var isLockedOut = await userManager.IsLockedOutAsync(user).ConfigureAwait(false);
-			result.Add(new UserWithRole(
-				user.Id, user.Email ?? user.UserName ?? user.Id, roles.FirstOrDefault(), isLockedOut));
-		}
-		return result;
+		// 사용자마다 GetRolesAsync/IsLockedOutAsync를 부르면 N+1 쿼리가 되므로 한 번에 조회한다.
+		// 잠금 판정은 UserManager.IsLockedOutAsync와 같은 규칙(LockoutEnabled && LockoutEnd >= now).
+		var now = DateTimeOffset.UtcNow;
+		return await db.Users.AsNoTracking()
+			.Select(u => new UserWithRole(
+				u.Id,
+				u.Email ?? u.UserName ?? u.Id,
+				db.UserRoles.Where(ur => ur.UserId == u.Id)
+					.Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+					.OrderBy(name => name)
+					.FirstOrDefault(),
+				u.LockoutEnabled && u.LockoutEnd != null && u.LockoutEnd >= now))
+			.ToListAsync(cancellationToken)
+			.ConfigureAwait(false);
 	}
 
 	public async Task SetRoleAsync(
