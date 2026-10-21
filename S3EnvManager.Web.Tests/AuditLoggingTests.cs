@@ -35,11 +35,11 @@ public class AuditLoggingTests
 		app.Envs.Add(devEnv);
 		db.Apps.Add(app);
 		await db.SaveChangesAsync();
-		await new PrimaryStorageSettingsStore(CreateDbContext()).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
 
 		var bundleService = new SecretBundleService(
 			CreateDbContext(), new FakeSecretObjectStore(), kms, kms,
-			new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()));
+			new AuditLogger(CreateDbContext(), TimeProvider.System), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var actorUserId = "user-" + Guid.NewGuid().ToString("N")[..8];
 
 		const string secretValue = "super-secret-value-should-never-appear-in-log";
@@ -91,12 +91,12 @@ public class AuditLoggingTests
 		};
 		db.Apps.Add(app);
 		await db.SaveChangesAsync();
-		await new PrimaryStorageSettingsStore(CreateDbContext()).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
 
 		var credentialService = new AppCredentialService(
 			CreateDbContext(), new FakeAppCredentialProvisioner(),
-			new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache()),
-			new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()));
+			new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache(), TimeProvider.System),
+			new AuditLogger(CreateDbContext(), TimeProvider.System), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var actorUserId = "user-" + Guid.NewGuid().ToString("N")[..8];
 
 		var (credential, _) = await credentialService.IssueAsync(app.Id, actorUserId);

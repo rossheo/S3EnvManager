@@ -1,7 +1,7 @@
 namespace S3EnvManager.Web.Services;
 
 public sealed class BucketSelfHealService(
-	IBucketComplianceOperations bucket, IAuditLogger auditLogger) : IBucketSelfHealService
+	IBucketComplianceOperations bucket, IAuditLogger auditLogger, TimeProvider timeProvider) : IBucketSelfHealService
 {
 	private const Int32 NoncurrentVersionExpirationDays = 180;
 	private const string LifecycleRuleId = "s3envmanager-noncurrent-version-expiration";
@@ -33,7 +33,7 @@ public sealed class BucketSelfHealService(
 
 		return new BucketHealthReport(
 			bucketName, versioningEnabled, publicAccessBlocked, objectOwnershipEnforced, lifecycleConfigured,
-			tlsEnforced, DateTimeOffset.UtcNow);
+			tlsEnforced, timeProvider.GetUtcNow());
 	}
 
 	private async Task<bool> EnsureVersioningEnabledAsync(

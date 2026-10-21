@@ -26,7 +26,7 @@ public class FeatureSwitchServiceInfraTests
 			.Where(f => f.Key == FeatureSwitchKeys.AllowRegistration)
 			.ExecuteDeleteAsync();
 
-		var service = new FeatureSwitchService(db, new NoOpAuditLogger());
+		var service = new FeatureSwitchService(db, new NoOpAuditLogger(), TimeProvider.System);
 		var enabled = await service.IsEnabledAsync(FeatureSwitchKeys.AllowRegistration);
 
 		var expectedDefault = FeatureSwitchKeys.Known
@@ -43,7 +43,7 @@ public class FeatureSwitchServiceInfraTests
 		}
 
 		await using var db = BuildDbContext();
-		var service = new FeatureSwitchService(db, new NoOpAuditLogger());
+		var service = new FeatureSwitchService(db, new NoOpAuditLogger(), TimeProvider.System);
 
 		var listed = await service.ListAsync();
 		var listedKeys = listed.Select(s => s.Key).ToList();
@@ -63,7 +63,7 @@ public class FeatureSwitchServiceInfraTests
 		}
 
 		await using var db = BuildDbContext();
-		var service = new FeatureSwitchService(db, new NoOpAuditLogger());
+		var service = new FeatureSwitchService(db, new NoOpAuditLogger(), TimeProvider.System);
 
 		try
 		{
@@ -92,7 +92,7 @@ public class FeatureSwitchServiceInfraTests
 		}
 
 		await using var db = BuildDbContext();
-		var service = new FeatureSwitchService(db, new NoOpAuditLogger());
+		var service = new FeatureSwitchService(db, new NoOpAuditLogger(), TimeProvider.System);
 
 		await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
 			() => service.SetEnabledAsync("NotARealSwitch", true));

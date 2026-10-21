@@ -66,6 +66,8 @@ public class Worker(
 		var db = sp.GetRequiredService<ApplicationDbContext>();
 		var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
 		var options = sp.GetRequiredService<IOptions<InitialAdminSetupOptions>>();
-		await InitialAdminSetupTokenService.LogIfBootstrapPendingAsync(db, userManager, options.Value, logger, ct);
+		var timeProvider = sp.GetRequiredService<TimeProvider>();
+		await InitialAdminSetupTokenService.LogIfBootstrapPendingAsync(
+			db, userManager, options.Value, logger, timeProvider, ct);
 	}
 }

@@ -9,7 +9,7 @@ namespace S3EnvManager.Web.Services;
 
 public sealed class DbBackupAccountService(
 	ApplicationDbContext db, IAppSecretKeyCipher secretKeyCipher, IAuditLogger auditLogger,
-	ILogger<DbBackupAccountService> logger)
+	ILogger<DbBackupAccountService> logger, TimeProvider timeProvider)
 	: IDbBackupAccountService
 {
 	private const string RoleName = "s3envmanager_backup_readonly";
@@ -96,14 +96,14 @@ public sealed class DbBackupAccountService(
 				Username = RoleName,
 				EncryptedPassword = ciphertext,
 				DataKeyId = dataKeyId,
-				RotatedAt = DateTimeOffset.UtcNow,
+				RotatedAt = timeProvider.GetUtcNow(),
 			});
 		}
 		else
 		{
 			existing.EncryptedPassword = ciphertext;
 			existing.DataKeyId = dataKeyId;
-			existing.RotatedAt = DateTimeOffset.UtcNow;
+			existing.RotatedAt = timeProvider.GetUtcNow();
 		}
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

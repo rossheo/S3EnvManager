@@ -28,7 +28,7 @@ public class AppDeletionAndPurgeTests
 		var adminArn = await GetOrCreateActiveCmkAsync(db, CmkRole.Admin);
 		await GetOrCreateActiveCmkAsync(db, CmkRole.App);
 
-		await new PrimaryStorageSettingsStore(CreateDbContext()).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
 		var app = new App
 		{
 			Id = Guid.NewGuid(), Name = appName, CreatedAt = DateTimeOffset.UtcNow
@@ -41,12 +41,12 @@ public class AppDeletionAndPurgeTests
 		await db.SaveChangesAsync();
 
 		var credentialService = new AppCredentialService(
-			CreateDbContext(), iam, new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache()),
-			new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()));
+			CreateDbContext(), iam, new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache(), TimeProvider.System),
+			new AuditLogger(CreateDbContext(), TimeProvider.System), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var (credential, _) = await credentialService.IssueAsync(app.Id);
 		Assert.True(iam.Users[appName].Exists);
 
-		var deletionService = new AppDeletionService(CreateDbContext(), iam, new AuditLogger(CreateDbContext()));
+		var deletionService = new AppDeletionService(CreateDbContext(), iam, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		await deletionService.DeleteAsync(app.Id);
 
 		await using (var verifyDb = CreateDbContext())
@@ -87,7 +87,7 @@ public class AppDeletionAndPurgeTests
 
 		var actorUserId = "actor-" + Guid.NewGuid().ToString("N")[..8];
 		var deletionService = new AppDeletionService(
-			CreateDbContext(), iam, new AuditLogger(CreateDbContext()));
+			CreateDbContext(), iam, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		await deletionService.DeleteAsync(app.Id, actorUserId);
 
 		await using var verifyDb = CreateDbContext();
@@ -113,7 +113,7 @@ public class AppDeletionAndPurgeTests
 		await GetOrCreateActiveCmkAsync(db, CmkRole.Admin);
 		await GetOrCreateActiveCmkAsync(db, CmkRole.App);
 
-		await new PrimaryStorageSettingsStore(CreateDbContext()).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
 		var app = new App
 		{
 			Id = Guid.NewGuid(), Name = appName, CreatedAt = DateTimeOffset.UtcNow
@@ -125,8 +125,8 @@ public class AppDeletionAndPurgeTests
 
 		var store = new FakeSecretObjectStore();
 		var bundleService = new SecretBundleService(
-			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()));
+			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		await bundleService.SaveAsync(
 			devEnv.Id, new Dictionary<string, string>(), null, new Dictionary<string, string> { ["A"] = "1" });
 		await bundleService.SaveAsync(devEnv.Id, new Dictionary<string, string>(), null,
@@ -140,8 +140,8 @@ public class AppDeletionAndPurgeTests
 		app.DeletedAt = DateTimeOffset.UtcNow.AddDays(-1);
 		await db.SaveChangesAsync();
 		await AppPurgeService.PurgeEligibleAppsAsync(
-			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext()),
-			new AuditLogger(CreateDbContext()), TimeProvider.System);
+			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+			new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		Assert.NotNull(await store.GetCurrentAsync(TestBucket, objectKey));
 		await using (var verifyDb1 = CreateDbContext())
 		{
@@ -151,8 +151,8 @@ public class AppDeletionAndPurgeTests
 		app.DeletedAt = DateTimeOffset.UtcNow.AddDays(-61);
 		await db.SaveChangesAsync();
 		await AppPurgeService.PurgeEligibleAppsAsync(
-			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext()),
-			new AuditLogger(CreateDbContext()), TimeProvider.System);
+			CreateDbContext(), store, new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+			new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		Assert.Null(await store.GetCurrentAsync(TestBucket, objectKey));
 		Assert.Null(await store.GetCurrentAsync(TestBucket, overwriteObjectKey));
 		await using (var verifyDb2 = CreateDbContext())

@@ -289,7 +289,7 @@ public class SharedSecretReferenceServiceTests
 			await using var db = CreateDbContext();
 			await GetOrCreateActiveCmkAsync(db, CmkRole.Admin);
 			await GetOrCreateActiveCmkAsync(db, CmkRole.App);
-			await new PrimaryStorageSettingsStore(db).SaveAsync(null, TestBucket);
+			await new PrimaryStorageSettingsStore(db, TimeProvider.System).SaveAsync(null, TestBucket);
 			return fixture;
 		}
 
@@ -305,17 +305,17 @@ public class SharedSecretReferenceServiceTests
 		}
 
 		public SecretBundleService CreateBundleService() => new(
-			CreateDbContext(), Store, Kms, Kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()));
+			CreateDbContext(), Store, Kms, Kms, new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 
 		public SharedSecretService CreateSharedSecretService() => new(
-			CreateDbContext(), new AppSecretKeyCipher(CreateDbContext(), Kms, new DataKeyCache()),
-			new AuditLogger(CreateDbContext()), CreateBundleService());
+			CreateDbContext(), new AppSecretKeyCipher(CreateDbContext(), Kms, new DataKeyCache(), TimeProvider.System),
+			new AuditLogger(CreateDbContext(), TimeProvider.System), CreateBundleService(), TimeProvider.System);
 
 		public SharedSecretReferenceService CreateReferenceService() => new(
 			CreateDbContext(), CreateBundleService(),
-			new AppSecretKeyCipher(CreateDbContext(), Kms, new DataKeyCache()),
-			new AuditLogger(CreateDbContext()));
+			new AppSecretKeyCipher(CreateDbContext(), Kms, new DataKeyCache(), TimeProvider.System),
+			new AuditLogger(CreateDbContext(), TimeProvider.System));
 
 		public static ApplicationDbContext CreateDbContext() =>
 			new(new DbContextOptionsBuilder<ApplicationDbContext>()

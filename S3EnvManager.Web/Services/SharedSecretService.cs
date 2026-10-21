@@ -6,7 +6,7 @@ namespace S3EnvManager.Web.Services;
 
 public sealed class SharedSecretService(
 	ApplicationDbContext db, IAppSecretKeyCipher cipher, IAuditLogger auditLogger,
-	ISecretBundleService bundleService)
+	ISecretBundleService bundleService, TimeProvider timeProvider)
 	: ISharedSecretService
 {
 	public async Task<List<SharedSecretSummary>> ListAsync(CancellationToken cancellationToken = default)
@@ -38,7 +38,7 @@ public sealed class SharedSecretService(
 
 		var (ciphertext, dataKeyId) = await cipher.EncryptAsync(value, cancellationToken)
 			.ConfigureAwait(false);
-		var now = DateTimeOffset.UtcNow;
+		var now = timeProvider.GetUtcNow();
 		var entity = new SharedSecret
 		{
 			Id = Guid.NewGuid(),
@@ -86,7 +86,7 @@ public sealed class SharedSecretService(
 
 			locked.Description = description;
 			locked.ExpiresAt = expiresAt;
-			locked.UpdatedAt = DateTimeOffset.UtcNow;
+			locked.UpdatedAt = timeProvider.GetUtcNow();
 
 			if (newValue is not null)
 			{
@@ -269,7 +269,7 @@ public sealed class SharedSecretService(
 			Id = Guid.NewGuid(),
 			SharedSecretId = sharedSecretId,
 			AppId = appId,
-			GrantedAt = DateTimeOffset.UtcNow,
+			GrantedAt = timeProvider.GetUtcNow(),
 			GrantedByUserId = actorUserId,
 		});
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -354,7 +354,7 @@ public sealed class SharedSecretService(
 				IsOverwriteBundle = reference.IsOverwriteBundle,
 				KeyName = reference.KeyName,
 				ExpiresAt = secret.ExpiresAt.Value,
-				UpdatedAt = DateTimeOffset.UtcNow,
+				UpdatedAt = timeProvider.GetUtcNow(),
 			});
 		}
 	}

@@ -20,7 +20,7 @@ public class BucketSelfHealServiceTests
 
 		var bucket = "fake-bucket-" + Guid.NewGuid().ToString("N")[..8];
 		var s3 = new FakeBucketComplianceOperations();
-		var service = new BucketSelfHealService(s3, new AuditLogger(CreateDbContext()));
+		var service = new BucketSelfHealService(s3, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 
 		var first = await service.HealAsync(bucket);
 		Assert.True(first.VersioningEnabled);
@@ -55,7 +55,7 @@ public class BucketSelfHealServiceTests
 		var s3 = new FakeBucketComplianceOperations();
 		s3.SeedExistingLifecycleRule(bucket);
 
-		var service = new BucketSelfHealService(s3, new AuditLogger(CreateDbContext()));
+		var service = new BucketSelfHealService(s3, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var report = await service.HealAsync(bucket);
 
 		Assert.True(report.LifecycleRuleConfigured);
@@ -77,7 +77,7 @@ public class BucketSelfHealServiceTests
 			"\"Condition\":{\"Bool\":{\"aws:SecureTransport\":\"false\"}}}]}";
 		s3.SeedBucketPolicy(bucket, policy);
 
-		var service = new BucketSelfHealService(s3, new AuditLogger(CreateDbContext()));
+		var service = new BucketSelfHealService(s3, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var report = await service.HealAsync(bucket);
 
 		Assert.True(report.TlsEnforced);

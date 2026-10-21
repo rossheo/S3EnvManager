@@ -3,7 +3,7 @@ using S3EnvManager.Database.Models;
 
 namespace S3EnvManager.Web.Services;
 
-public sealed class AuditLogger(ApplicationDbContext db) : IAuditLogger
+public sealed class AuditLogger(ApplicationDbContext db, TimeProvider timeProvider) : IAuditLogger
 {
 	public async Task LogAsync(
 		string eventType, string? actorUserId, Guid? appId, string? details,
@@ -12,7 +12,7 @@ public sealed class AuditLogger(ApplicationDbContext db) : IAuditLogger
 		db.AuditLogs.Add(new AuditLog
 		{
 			Id = Guid.NewGuid(),
-			OccurredAt = DateTimeOffset.UtcNow,
+			OccurredAt = timeProvider.GetUtcNow(),
 			ActorUserId = actorUserId,
 			EventType = eventType,
 			AppId = appId,

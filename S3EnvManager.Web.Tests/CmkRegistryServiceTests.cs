@@ -29,9 +29,9 @@ public class CmkRegistryServiceTests
 		await using var db = CreateDbContext();
 		var kms = new FakeKmsKeyOperations();
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), new FakeAppCredentialProvisioner(),
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), new FakeAppCredentialProvisioner(),
 			new FakeSecretObjectStore(), kms, new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new FakeKmsKeyAdministration());
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), new FakeKmsKeyAdministration(), TimeProvider.System);
 
 		var adminArnA = NewFakeArn();
 		var appArn = NewFakeArn();
@@ -61,12 +61,12 @@ public class CmkRegistryServiceTests
 		app.Envs.Add(devEnv);
 		db.Apps.Add(app);
 		await db.SaveChangesAsync();
-		await new PrimaryStorageSettingsStore(CreateDbContext()).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
 
 		var store = new FakeSecretObjectStore();
 		var bundleService = new SecretBundleService(
-			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()));
+			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 
 		var values = new Dictionary<string, string> { ["FOO"] = "bar-under-cmk-a" };
 		var saveOutcome = await bundleService.SaveAsync(devEnv.Id, new Dictionary<string, string>(), null, values);
@@ -109,9 +109,9 @@ public class CmkRegistryServiceTests
 		var kms = new FakeKmsKeyOperations();
 		var provisioner = new FakeAppCredentialProvisioner();
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), provisioner,
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), provisioner,
 			new FakeSecretObjectStore(), kms, new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new FakeKmsKeyAdministration());
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), new FakeKmsKeyAdministration(), TimeProvider.System);
 
 		var adminArn = NewFakeArn();
 		var appArnA = NewFakeArn();
@@ -138,12 +138,12 @@ public class CmkRegistryServiceTests
 		};
 		db.Apps.Add(app);
 		await db.SaveChangesAsync();
-		await new PrimaryStorageSettingsStore(CreateDbContext()).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
 
 		var credentialService = new AppCredentialService(
 			CreateDbContext(), provisioner,
-			new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache()),
-			new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()));
+			new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache(), TimeProvider.System),
+			new AuditLogger(CreateDbContext(), TimeProvider.System), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		await credentialService.IssueAsync(app.Id);
 
 		var appArnB = NewFakeArn();
@@ -176,9 +176,9 @@ public class CmkRegistryServiceTests
 		var kms = new FakeKmsKeyOperations();
 		var kmsAdmin = new FakeKmsKeyAdministration();
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), provisioner, store, kms,
-			new FakeBootstrapAppIdentityProvisioner(), new PrimaryStorageSettingsStore(CreateDbContext()),
-			kmsAdmin);
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), provisioner, store, kms,
+			new FakeBootstrapAppIdentityProvisioner(), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+			kmsAdmin, TimeProvider.System);
 
 		var adminArn = NewFakeArn();
 		var appArnA = NewFakeArn();
@@ -208,11 +208,11 @@ public class CmkRegistryServiceTests
 		app.Envs.Add(devEnv);
 		db.Apps.Add(app);
 		await db.SaveChangesAsync();
-		await new PrimaryStorageSettingsStore(CreateDbContext()).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
 
 		var bundleService = new SecretBundleService(
-			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()));
+			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 
 		// 재래핑 스윕이 base/overwrite 둘 다 커버하는지가 핵심(overwrite를 빠뜨리기 쉽다).
 		var baseValues = new Dictionary<string, string> { ["FOO"] = "base-under-cmk-a" };
@@ -274,9 +274,9 @@ public class CmkRegistryServiceTests
 		var kms = new FakeKmsKeyOperations();
 		var kmsAdmin = new FakeKmsKeyAdministration();
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), provisioner, store, kms,
-			new FakeBootstrapAppIdentityProvisioner(), new PrimaryStorageSettingsStore(CreateDbContext()),
-			kmsAdmin);
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), provisioner, store, kms,
+			new FakeBootstrapAppIdentityProvisioner(), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+			kmsAdmin, TimeProvider.System);
 
 		var adminArnA = NewFakeArn();
 		var registrationA = new CmkRegistration
@@ -306,11 +306,11 @@ public class CmkRegistryServiceTests
 		app.Envs.Add(devEnv);
 		db.Apps.Add(app);
 		await db.SaveChangesAsync();
-		await new PrimaryStorageSettingsStore(CreateDbContext()).SaveAsync(null, TestBucket);
+		await new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System).SaveAsync(null, TestBucket);
 
 		var bundleService = new SecretBundleService(
-			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()));
+			CreateDbContext(), store, kms, kms, new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var objectKey = $"{appName}/dev.env";
 
 		var v1 = new Dictionary<string, string> { ["FOO"] = "v1-under-cmk-a" };
@@ -322,10 +322,10 @@ public class CmkRegistryServiceTests
 			await bundleService.SaveAsync(devEnv.Id, session1.Values, session1.BaseETag, v2));
 
 		var cache = new DataKeyCache();
-		var secretKeyCipher = new AppSecretKeyCipher(CreateDbContext(), kms, cache);
+		var secretKeyCipher = new AppSecretKeyCipher(CreateDbContext(), kms, cache, TimeProvider.System);
 		var credentialService = new AppCredentialService(
-			CreateDbContext(), provisioner, secretKeyCipher, new AuditLogger(CreateDbContext()),
-			new PrimaryStorageSettingsStore(CreateDbContext()));
+			CreateDbContext(), provisioner, secretKeyCipher, new AuditLogger(CreateDbContext(), TimeProvider.System),
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var (credential, secretAccessKey) = await credentialService.IssueAsync(app.Id);
 		var dataKeyIdBefore = credential.DataKeyId;
 		await using (var verifyGenDb = CreateDbContext())
@@ -381,7 +381,7 @@ public class CmkRegistryServiceTests
 				.SingleAsync(g => g.KeyId == dataKeyIdBefore);
 			Assert.Equal(registrationB.CmkId, generationAfter.CmkId);
 		}
-		var revealed = await new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache())
+		var revealed = await new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache(), TimeProvider.System)
 			.DecryptAsync(credential.EncryptedSecretKey, dataKeyIdBefore);
 		Assert.Equal(secretAccessKey, revealed);
 
@@ -408,9 +408,9 @@ public class CmkRegistryServiceTests
 		await ResetSharedCmkStateAsync();
 
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), new FakeAppCredentialProvisioner(),
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), new FakeAppCredentialProvisioner(),
 			new FakeSecretObjectStore(), new FakeKmsKeyOperations(), new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new FakeKmsKeyAdministration());
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), new FakeKmsKeyAdministration(), TimeProvider.System);
 
 		var appArn = NewFakeArn();
 		var appRegistration = await registryService.RegisterAsync(CmkRole.App, appArn);
@@ -445,9 +445,9 @@ public class CmkRegistryServiceTests
 
 		var kmsAdmin = new FakeKmsKeyAdministration();
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), new FakeAppCredentialProvisioner(),
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), new FakeAppCredentialProvisioner(),
 			new FakeSecretObjectStore(), new FakeKmsKeyOperations(), new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext()), kmsAdmin);
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), kmsAdmin, TimeProvider.System);
 		var arn = NewFakeArn();
 
 		await registryService.RegisterAsync(CmkRole.Admin, arn);
@@ -466,9 +466,9 @@ public class CmkRegistryServiceTests
 		await ResetSharedCmkStateAsync();
 
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), new FakeAppCredentialProvisioner(),
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), new FakeAppCredentialProvisioner(),
 			new FakeSecretObjectStore(), new FakeKmsKeyOperations(), new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new FakeKmsKeyAdministration());
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), new FakeKmsKeyAdministration(), TimeProvider.System);
 		var arn = NewFakeArn();
 
 		await registryService.RegisterAsync(CmkRole.App, arn);
@@ -486,9 +486,9 @@ public class CmkRegistryServiceTests
 		await ResetSharedCmkStateAsync();
 
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), new FakeAppCredentialProvisioner(),
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), new FakeAppCredentialProvisioner(),
 			new FakeSecretObjectStore(), new FakeKmsKeyOperations(), new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new FakeKmsKeyAdministration());
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), new FakeKmsKeyAdministration(), TimeProvider.System);
 		var arn = NewFakeArn();
 
 		await registryService.RegisterAsync(CmkRole.Admin, arn);
@@ -509,9 +509,9 @@ public class CmkRegistryServiceTests
 
 		await using var db = CreateDbContext();
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), new FakeAppCredentialProvisioner(),
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), new FakeAppCredentialProvisioner(),
 			new FakeSecretObjectStore(), new FakeKmsKeyOperations(), new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new FakeKmsKeyAdministration());
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), new FakeKmsKeyAdministration(), TimeProvider.System);
 		var actorUserId = "user-" + Guid.NewGuid().ToString("N")[..8];
 
 		// 첫 등록은 자동 Active라 PromoteAsync가 no-op이 된다 - 실제 승격을 만들려면 먼저 채워둬야 한다.

@@ -447,7 +447,7 @@ public class SecretBundleServiceTests
 			await using var db = CreateDbContext();
 			await GetOrCreateActiveCmkAsync(db, CmkRole.Admin);
 			await GetOrCreateActiveCmkAsync(db, CmkRole.App);
-			await new PrimaryStorageSettingsStore(db).SaveAsync(null, TestBucket);
+			await new PrimaryStorageSettingsStore(db, TimeProvider.System).SaveAsync(null, TestBucket);
 			return fixture;
 		}
 
@@ -474,7 +474,7 @@ public class SecretBundleServiceTests
 				store = wrapStore(store);
 			}
 			return new SecretBundleService(
-				db, store, Kms, Kms, new AuditLogger(db), new PrimaryStorageSettingsStore(db));
+				db, store, Kms, Kms, new AuditLogger(db, TimeProvider.System), new PrimaryStorageSettingsStore(db, TimeProvider.System), TimeProvider.System);
 		}
 
 		private static async Task<string> GetOrCreateActiveCmkAsync(ApplicationDbContext db, CmkRole role)

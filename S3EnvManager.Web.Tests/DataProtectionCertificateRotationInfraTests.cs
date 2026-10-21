@@ -22,7 +22,7 @@ public class DataProtectionCertificateRotationInfraTests
 		await using var db = CreateDbContext();
 		var options = new DataProtectionCertificateOptions { Password = null };
 		var cache = new DataProtectionCertificateCache();
-		var auditLogger = new AuditLogger(CreateDbContext());
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 
 		var outcome = await DataProtectionCertificateRotationService.RotateIfDueAsync(
 			db, options, cache, auditLogger, TimeProvider.System);
@@ -43,7 +43,7 @@ public class DataProtectionCertificateRotationInfraTests
 		var options = new DataProtectionCertificateOptions
 			{ Password = "pw", ValidityYears = 2, RotateBeforeExpiryDays = 365 };
 		var cache = new DataProtectionCertificateCache();
-		var auditLogger = new AuditLogger(CreateDbContext());
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 
 		await DataProtectionCertificateStore.IssueAndSaveAsync(
 			db, options.Password!, options.ValidityYears, TimeProvider.System);
@@ -67,7 +67,7 @@ public class DataProtectionCertificateRotationInfraTests
 		var options = new DataProtectionCertificateOptions
 			{ Password = "pw", ValidityYears = 2, RotateBeforeExpiryDays = 365 };
 		var cache = new DataProtectionCertificateCache();
-		var auditLogger = new AuditLogger(CreateDbContext());
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 
 		var issued = await DataProtectionCertificateStore.IssueAndSaveAsync(
 			db, options.Password!, options.ValidityYears, TimeProvider.System);

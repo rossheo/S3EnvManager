@@ -17,5 +17,5 @@ public sealed class DataKeyRotationBackgroundService(
 			services.GetRequiredService<ApplicationDbContext>(),
 			services.GetRequiredService<IKmsKeyOperations>(),
 			services.GetRequiredService<IAuditLogger>(),
-			TimeProvider.System, cancellationToken);
+			services.GetRequiredService<TimeProvider>(), cancellationToken);
 }

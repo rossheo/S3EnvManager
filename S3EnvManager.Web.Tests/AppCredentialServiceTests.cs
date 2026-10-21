@@ -78,7 +78,7 @@ public class AppCredentialServiceTests
 			await using var db = CreateDbContext();
 			await GetOrCreateActiveCmkAsync(db, CmkRole.Admin);
 			await GetOrCreateActiveCmkAsync(db, CmkRole.App);
-			await new PrimaryStorageSettingsStore(db).SaveAsync(null, TestBucket);
+			await new PrimaryStorageSettingsStore(db, TimeProvider.System).SaveAsync(null, TestBucket);
 			return fixture;
 		}
 
@@ -103,15 +103,16 @@ public class AppCredentialServiceTests
 		public SecretBundleService CreateSecretBundleService() =>
 			new(
 				CreateDbContext(), new FakeSecretObjectStore(), Kms, Kms,
-				new AuditLogger(CreateDbContext()), new PrimaryStorageSettingsStore(CreateDbContext()));
+				new AuditLogger(CreateDbContext(), TimeProvider.System), new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System),
+				TimeProvider.System);
 
 		public AppCredentialService CreateCredentialService()
 		{
 			var db = CreateDbContext();
 			var cache = new DataKeyCache();
 			return new AppCredentialService(
-				db, Provisioner, new AppSecretKeyCipher(db, Kms, cache), new AuditLogger(db),
-				new PrimaryStorageSettingsStore(CreateDbContext()));
+				db, Provisioner, new AppSecretKeyCipher(db, Kms, cache, TimeProvider.System), new AuditLogger(db, TimeProvider.System),
+				new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		}
 
 		private static async Task<string> GetOrCreateActiveCmkAsync(ApplicationDbContext db, CmkRole role)

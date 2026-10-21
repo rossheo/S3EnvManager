@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using MudBlazor.Services;
 using S3EnvManager.Database;
 using S3EnvManager.Sops;
@@ -25,6 +26,7 @@ builder.Services.AddRazorComponents()
 	.AddInteractiveServerComponents();
 
 builder.Services.AddMemoryCache();
+builder.Services.TryAddSingleton(TimeProvider.System);
 
 // KMS 호출량 계측 - free tier 한도에 얼마나 근접했는지를 AWS 콘솔 밖에서 보기 위함.
 builder.Services.AddMetrics();
@@ -154,7 +156,7 @@ builder.Services.AddScoped<IKmsKeyOperations>(sp =>
 		sp.GetRequiredService<KmsMetrics>()));
 builder.Services.AddScoped<ISecretObjectStore, S3SecretObjectStore>();
 builder.Services.AddSingleton<IReusableDataKeyCache>(sp =>
-	new ReusableDataKeyCache(TimeProvider.System, sp.GetRequiredService<KmsMetrics>()));
+	new ReusableDataKeyCache(sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<KmsMetrics>()));
 builder.Services.AddScoped<ISecretBundleService, SecretBundleService>();
 builder.Services.AddSingleton<IDataKeyCache, DataKeyCache>();
 builder.Services.AddScoped<IAppSecretKeyCipher, AppSecretKeyCipher>();
@@ -187,6 +189,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
 	var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+	var timeProvider = scope.ServiceProvider.GetRequiredService<TimeProvider>();
 
 	// DataProtection 인증서 캐시를 다른 Protect/Unprotect 호출보다 먼저 채운다 - 아래
 	// AwsBootstrapCredentialStore.GetAsync()가 기존 암호화된 자격증명을 복호화하려면 필요하다.
@@ -200,7 +203,7 @@ using (var scope = app.Services.CreateScope())
 		{
 			var issuedCertificate = await DataProtectionCertificateStore.IssueAndSaveAsync(
 				db, dataProtectionCertificatePassword, dataProtectionCertificateOptions.ValidityYears,
-				TimeProvider.System);
+				timeProvider);
 			dataProtectionCertificateCache.ReplaceSnapshot([issuedCertificate]);
 		}
 		else
@@ -247,13 +250,13 @@ using (var scope = app.Services.CreateScope())
 
 	var cmkOptions = scope.ServiceProvider
 		.GetRequiredService<Microsoft.Extensions.Options.IOptions<CmkBootstrapOptions>>();
-	await CmkBootstrapService.EnsureBootstrapCmksSeededAsync(db, cmkOptions.Value);
+	await CmkBootstrapService.EnsureBootstrapCmksSeededAsync(db, cmkOptions.Value, timeProvider);
 
 	var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 	var initialAdminSetupOptions = scope.ServiceProvider
 		.GetRequiredService<Microsoft.Extensions.Options.IOptions<InitialAdminSetupOptions>>();
 	await InitialAdminSetupTokenService.LogIfBootstrapPendingAsync(
-		db, userManager, initialAdminSetupOptions.Value, app.Logger);
+		db, userManager, initialAdminSetupOptions.Value, app.Logger, timeProvider);
 
 	// AutoProvisioningSelfHeal이 켜져 있고 admin 자격증명이 있으면 부트스트랩 리소스를 재확인한다.
 	// 기본은 꺼져 있고, 실패해도 기동을 막지 않는다.

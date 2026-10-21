@@ -7,7 +7,7 @@ using S3EnvManager.Sops;
 
 namespace S3EnvManager.Web.Services;
 
-public sealed class AppSecretKeyCipher(ApplicationDbContext db, IKmsKeyOperations kms, IDataKeyCache cache)
+public sealed class AppSecretKeyCipher(ApplicationDbContext db, IKmsKeyOperations kms, IDataKeyCache cache, TimeProvider timeProvider)
 	: IAppSecretKeyCipher
 {
 	private const Int32 NonceSize = 12;
@@ -89,7 +89,7 @@ public sealed class AppSecretKeyCipher(ApplicationDbContext db, IKmsKeyOperation
 			KeyId = Guid.NewGuid(),
 			CiphertextBlob = ciphertextBlob,
 			CmkId = adminCmk.CmkId,
-			CreatedAt = DateTimeOffset.UtcNow,
+			CreatedAt = timeProvider.GetUtcNow(),
 		};
 		db.DataKeyGenerations.Add(generation);
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

@@ -18,6 +18,7 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 @inject ApplicationDbContext Db
+@inject TimeProvider TimeProvider
 @inject IOptions<InitialAdminSetupOptions> InitialAdminSetupOptions
 @inject IFeatureSwitchService FeatureSwitchService
 
@@ -153,7 +154,7 @@ else
 		var shouldBeInitialAdministrator = false;
 		if (await InitialAdminSetupTokenService.IsAdminBootstrapPendingAsync(UserManager))
 		{
-			var generatedToken = await InitialAdminSetupTokenService.EnsureGeneratedTokenAsync(Db);
+			var generatedToken = await InitialAdminSetupTokenService.EnsureGeneratedTokenAsync(Db, TimeProvider);
 			shouldBeInitialAdministrator = InitialAdminSetupTokenService.MatchesEitherToken(
 				Input.SetupToken, generatedToken, InitialAdminSetupOptions.Value);
 		}

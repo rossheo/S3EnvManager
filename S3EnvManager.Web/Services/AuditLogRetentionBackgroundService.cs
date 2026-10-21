@@ -11,5 +11,6 @@ public sealed class AuditLogRetentionBackgroundService(
 	protected override Task ExecuteCycleAsync(
 		IServiceProvider services, CancellationToken cancellationToken) =>
 		AuditLogRetentionService.DeleteExpiredLogsAsync(
-			services.GetRequiredService<ApplicationDbContext>(), TimeProvider.System, cancellationToken);
+			services.GetRequiredService<ApplicationDbContext>(), services.GetRequiredService<TimeProvider>(),
+			cancellationToken);
 }

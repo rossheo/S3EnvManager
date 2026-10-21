@@ -5,14 +5,14 @@ using S3EnvManager.Database;
 namespace S3EnvManager.Web.Services;
 
 public sealed class UserRoleService(
-	ApplicationDbContext db, UserManager<ApplicationUser> userManager, IAuditLogger auditLogger)
+	ApplicationDbContext db, UserManager<ApplicationUser> userManager, IAuditLogger auditLogger, TimeProvider timeProvider)
 	: IUserRoleService
 {
 	public async Task<List<UserWithRole>> ListAsync(CancellationToken cancellationToken = default)
 	{
 		// 사용자마다 GetRolesAsync/IsLockedOutAsync를 부르면 N+1 쿼리가 되므로 한 번에 조회한다.
 		// 잠금 판정은 UserManager.IsLockedOutAsync와 같은 규칙(LockoutEnabled && LockoutEnd >= now).
-		var now = DateTimeOffset.UtcNow;
+		var now = timeProvider.GetUtcNow();
 		return await db.Users.AsNoTracking()
 			.Select(u => new UserWithRole(
 				u.Id,

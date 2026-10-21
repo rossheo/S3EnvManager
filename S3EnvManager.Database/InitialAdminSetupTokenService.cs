@@ -20,7 +20,7 @@ public static class InitialAdminSetupTokenService
 	// 여러 인스턴스가 동시에 최초 생성을 시도하는 경쟁은 고정 singleton ID의 유니크 제약으로
 	// 막고, 진 쪽은 이긴 쪽이 저장한 값을 그대로 읽어 돌려준다.
 	public static async Task<string> EnsureGeneratedTokenAsync(
-		ApplicationDbContext db, CancellationToken cancellationToken = default)
+		ApplicationDbContext db, TimeProvider timeProvider, CancellationToken cancellationToken = default)
 	{
 		var existing = await db.InitialAdminSetupTokens.AsNoTracking()
 			.SingleOrDefaultAsync(t => t.Id == InitialAdminSetupToken.SingletonId, cancellationToken)
@@ -32,7 +32,7 @@ public static class InitialAdminSetupTokenService
 
 		var token = GenerateToken();
 		db.InitialAdminSetupTokens.Add(
-			new InitialAdminSetupToken { Token = token, CreatedAt = DateTimeOffset.UtcNow });
+			new InitialAdminSetupToken { Token = token, CreatedAt = timeProvider.GetUtcNow() });
 		try
 		{
 			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -64,14 +64,15 @@ public static class InitialAdminSetupTokenService
 
 	public static async Task LogIfBootstrapPendingAsync(
 		ApplicationDbContext db, Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> userManager,
-		InitialAdminSetupOptions options, ILogger logger, CancellationToken cancellationToken = default)
+		InitialAdminSetupOptions options, ILogger logger, TimeProvider timeProvider,
+		CancellationToken cancellationToken = default)
 	{
 		if (!await IsAdminBootstrapPendingAsync(userManager, cancellationToken).ConfigureAwait(false))
 		{
 			return;
 		}
 
-		var generatedToken = await EnsureGeneratedTokenAsync(db, cancellationToken).ConfigureAwait(false);
+		var generatedToken = await EnsureGeneratedTokenAsync(db, timeProvider, cancellationToken).ConfigureAwait(false);
 		logger.LogWarning(
 			"관리자 계정이 아직 없습니다 - 회원가입 화면에서 아래 초기 설정 토큰을 입력한 첫 사용자가 " +
 			"Administrator 권한을 받습니다: {Token}", generatedToken);

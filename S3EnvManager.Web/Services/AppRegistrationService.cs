@@ -7,7 +7,7 @@ namespace S3EnvManager.Web.Services;
 public sealed class AppRegistrationService(
 	ApplicationDbContext db, IBucketSelfHealService bucketSelfHeal,
 	IBucketHealthStatusStore bucketHealthStatusStore,
-	IPrimaryStorageSettingsStore primaryStorageSettingsStore, IAuditLogger auditLogger)
+	IPrimaryStorageSettingsStore primaryStorageSettingsStore, IAuditLogger auditLogger, TimeProvider timeProvider)
 	: IAppRegistrationService
 {
 	private static readonly EnvName[] FixedEnvNames = [EnvName.Dev, EnvName.Staging, EnvName.Product];
@@ -35,7 +35,7 @@ public sealed class AppRegistrationService(
 		{
 			Id = Guid.NewGuid(),
 			Name = name,
-			CreatedAt = DateTimeOffset.UtcNow,
+			CreatedAt = timeProvider.GetUtcNow(),
 		};
 		foreach (var envName in FixedEnvNames)
 		{

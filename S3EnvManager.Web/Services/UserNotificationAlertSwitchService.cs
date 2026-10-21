@@ -4,7 +4,7 @@ using S3EnvManager.Database.Models;
 
 namespace S3EnvManager.Web.Services;
 
-public sealed class UserNotificationAlertSwitchService(ApplicationDbContext db)
+public sealed class UserNotificationAlertSwitchService(ApplicationDbContext db, TimeProvider timeProvider)
 	: IUserNotificationAlertSwitchService
 {
 	public async Task<bool> IsEnabledAsync(
@@ -72,14 +72,14 @@ public sealed class UserNotificationAlertSwitchService(ApplicationDbContext db)
 					UserId = userId,
 					AlertType = alertType,
 					Enabled = enabled,
-					UpdatedAt = DateTimeOffset.UtcNow,
+					UpdatedAt = timeProvider.GetUtcNow(),
 				};
 				db.UserNotificationAlertSwitches.Add(existing);
 			}
 			else
 			{
 				existing.Enabled = enabled;
-				existing.UpdatedAt = DateTimeOffset.UtcNow;
+				existing.UpdatedAt = timeProvider.GetUtcNow();
 			}
 			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

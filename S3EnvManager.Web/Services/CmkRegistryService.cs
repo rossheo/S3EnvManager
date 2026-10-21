@@ -10,7 +10,7 @@ public sealed class CmkRegistryService(
 	ISecretObjectStore store, IKmsKeyOperations kms,
 	IBootstrapAppIdentityProvisioner bootstrapAppIdentityProvisioner,
 	IPrimaryStorageSettingsStore primaryStorageSettingsStore,
-	IKmsKeyAdministration kmsKeyAdministration) : ICmkRegistryService
+	IKmsKeyAdministration kmsKeyAdministration, TimeProvider timeProvider) : ICmkRegistryService
 {
 	// DataKeyGeneration 재래핑용 - 원래 wrap이 context 없이 이뤄졌으므로 여기서도 없어야 한다
 	// (KMS는 wrap 시점과 다르면 Decrypt를 거부한다). 근거는 AppSecretKeyCipher.NoContext 주석 참고.
@@ -76,7 +76,7 @@ public sealed class CmkRegistryService(
 				Arn = arn,
 				Role = role,
 				Status = status,
-				CreatedAt = DateTimeOffset.UtcNow,
+				CreatedAt = timeProvider.GetUtcNow(),
 			};
 			db.CmkRegistrations.Add(registration);
 			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -459,7 +459,7 @@ public sealed class CmkRegistryService(
 			var newCiphertext = await kms.EncryptAsync(targetArn, dataKey, entry.EncryptionContext, cancellationToken)
 				.ConfigureAwait(false);
 			document.KmsEntries[entryIndex] = new SopsKmsEntry(
-				targetArn, newCiphertext, DateTimeOffset.UtcNow, entry.EncryptionContext);
+				targetArn, newCiphertext, timeProvider.GetUtcNow(), entry.EncryptionContext);
 
 			// LastModified/EncryptedMac은 절대 건드리지 않는다 - MAC이 LastModified를 AAD로
 			// 쓰므로, 바꾸면 이후 모든 복호화가 MAC 검증에 실패한다.

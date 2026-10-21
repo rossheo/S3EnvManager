@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using S3EnvManager.Database;
 using S3EnvManager.MigrationService;
 
@@ -19,6 +20,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.Configure<InitialAdminSetupOptions>(builder.Configuration.GetSection("InitialAdminSetup"));
 
+builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

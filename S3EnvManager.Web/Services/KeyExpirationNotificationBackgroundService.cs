@@ -16,5 +16,5 @@ public sealed class KeyExpirationNotificationBackgroundService(
 			services.GetRequiredService<ApplicationDbContext>(),
 			services.GetRequiredService<IDiscordNotifier>(),
 			services.GetRequiredService<IDataProtectionProvider>(),
-			TimeProvider.System, cancellationToken);
+			services.GetRequiredService<TimeProvider>(), cancellationToken);
 }

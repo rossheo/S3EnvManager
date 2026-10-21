@@ -14,6 +14,7 @@
 @inject ApplicationDbContext Db
 @inject IKmsKeyOperations Kms
 @inject IAuditLogger AuditLogger
+@inject TimeProvider TimeProvider
 @inject IJSRuntime JsRuntime
 @inject ISnackbar Snackbar
 
@@ -126,7 +127,7 @@ else
 		{
 			var actorUserId = await GetCurrentUserIdAsync();
 			var outcome = await DataKeyRotationService.RotateNowAsync(
-				Db, Kms, AuditLogger, TimeProvider.System, actorUserId);
+				Db, Kms, AuditLogger, TimeProvider, actorUserId);
 			await ReloadAsync();
 			Snackbar.Add(outcome switch
 			{

@@ -131,10 +131,10 @@ public class KeyExpirationNotificationServiceTests
 		var kms = new FakeKmsKeyOperations();
 		await GetOrCreateActiveAdminCmkAsync(db);
 		var sharedSecretService = new SharedSecretService(
-			db, new AppSecretKeyCipher(db, kms, new DataKeyCache()), new AuditLogger(db),
+			db, new AppSecretKeyCipher(db, kms, new DataKeyCache(), TimeProvider.System), new AuditLogger(db, TimeProvider.System),
 			new SecretBundleService(
-				db, new FakeSecretObjectStore(), kms, kms, new AuditLogger(db),
-				new PrimaryStorageSettingsStore(db)));
+				db, new FakeSecretObjectStore(), kms, kms, new AuditLogger(db, TimeProvider.System),
+				new PrimaryStorageSettingsStore(db, TimeProvider.System), TimeProvider.System), TimeProvider.System);
 		var sharedSecretName = "ext-api-" + Guid.NewGuid().ToString("N")[..8];
 		await sharedSecretService.CreateAsync(
 			sharedSecretName, null, "v1", now.AddDays(3), actorUserId: null);

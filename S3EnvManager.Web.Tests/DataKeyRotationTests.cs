@@ -24,7 +24,7 @@ public class DataKeyRotationTests
 
 		await using var db = CreateDbContext();
 		var kms = new FakeKmsKeyOperations();
-		var auditLogger = new AuditLogger(CreateDbContext());
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 
 		var adminCmk = await RegisterAndPromoteDedicatedAdminCmkAsync(kms);
 		await SetIntervalDaysAsync(db, days: 14);
@@ -66,7 +66,7 @@ public class DataKeyRotationTests
 
 		await using var db = CreateDbContext();
 		var kms = new FakeKmsKeyOperations();
-		var auditLogger = new AuditLogger(CreateDbContext());
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 
 		var adminCmk = await RegisterAndPromoteDedicatedAdminCmkAsync(kms);
 		await SetIntervalDaysAsync(db, days: 14);
@@ -102,7 +102,7 @@ public class DataKeyRotationTests
 
 		await using var db = CreateDbContext();
 		var kms = new FakeKmsKeyOperations();
-		var auditLogger = new AuditLogger(CreateDbContext());
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 
 		var adminCmk = await RegisterAndPromoteDedicatedAdminCmkAsync(kms);
 		await SetIntervalDaysAsync(db, days: 14);
@@ -147,7 +147,7 @@ public class DataKeyRotationTests
 
 		await using var db = CreateDbContext();
 		var kms = new FakeKmsKeyOperations();
-		var auditLogger = new AuditLogger(CreateDbContext());
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 
 		await RegisterAndPromoteDedicatedAdminCmkAsync(kms);
 		await SetIntervalDaysAsync(db, days: 14);
@@ -167,7 +167,7 @@ public class DataKeyRotationTests
 		}
 
 		var settingsService = new DataKeyRotationSettingsService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()));
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		var actorUserId = "user-" + Guid.NewGuid().ToString("N")[..8];
 
 		await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
@@ -200,9 +200,9 @@ public class DataKeyRotationTests
 	{
 		var arn = $"arn:aws:kms:ap-northeast-2:000000000000:key/fake-{Guid.NewGuid():N}";
 		var registryService = new CmkRegistryService(
-			CreateDbContext(), new AuditLogger(CreateDbContext()), new FakeAppCredentialProvisioner(),
+			CreateDbContext(), new AuditLogger(CreateDbContext(), TimeProvider.System), new FakeAppCredentialProvisioner(),
 			new FakeSecretObjectStore(), kms, new FakeBootstrapAppIdentityProvisioner(),
-			new PrimaryStorageSettingsStore(CreateDbContext()), new FakeKmsKeyAdministration());
+			new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System), new FakeKmsKeyAdministration(), TimeProvider.System);
 		var registration = await registryService.RegisterAsync(CmkRole.Admin, arn);
 		if (registration.Status != CmkStatus.Active)
 		{

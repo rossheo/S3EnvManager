@@ -9,7 +9,8 @@ namespace S3EnvManager.Web.Services;
 
 public sealed class AwsBootstrapCredentialStore(
 	ApplicationDbContext db, IDataProtectionProvider dataProtectionProvider,
-	ILogger<AwsBootstrapCredentialStore> logger)
+	ILogger<AwsBootstrapCredentialStore> logger,
+	TimeProvider timeProvider)
 	: IAwsBootstrapCredentialStore
 {
 	private readonly IDataProtector _protector =
@@ -30,14 +31,14 @@ public sealed class AwsBootstrapCredentialStore(
 				Role = role,
 				ProtectedAccessKeyId = protectedAccessKeyId,
 				ProtectedSecretAccessKey = protectedSecretAccessKey,
-				UpdatedAt = DateTimeOffset.UtcNow,
+				UpdatedAt = timeProvider.GetUtcNow(),
 			});
 		}
 		else
 		{
 			existing.ProtectedAccessKeyId = protectedAccessKeyId;
 			existing.ProtectedSecretAccessKey = protectedSecretAccessKey;
-			existing.UpdatedAt = DateTimeOffset.UtcNow;
+			existing.UpdatedAt = timeProvider.GetUtcNow();
 		}
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 	}

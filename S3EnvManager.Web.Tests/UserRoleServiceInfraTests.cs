@@ -37,7 +37,7 @@ public class UserRoleServiceInfraTests
 			// "첫 관리자" 부트스트랩은 Register.razor/InitialAdminSetupTokenService로 옮겨졌다 -
 			// 여기서는 역할 없는 사용자를 Guest로 채워주는 것만 검증한다.
 			var roleService = new UserRoleService(
-				provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext()));
+				provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 			await UserRoleBootstrapService.EnsureDefaultRolesAssignedAsync(
 				provider.GetRequiredService<ApplicationDbContext>(), userManager);
 			var users = await roleService.ListAsync();
@@ -72,7 +72,7 @@ public class UserRoleServiceInfraTests
 		await userManager.AddToRoleAsync(user, IdentityRoleNames.Guest);
 
 		var roleService = new UserRoleService(
-			provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext()));
+			provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		await roleService.SetRoleAsync(user.Id, IdentityRoleNames.Member);
 
 		var roles = await userManager.GetRolesAsync(user);
@@ -108,7 +108,7 @@ public class UserRoleServiceInfraTests
 		await userManager.AddToRoleAsync(user, IdentityRoleNames.Administrator);
 
 		var roleService = new UserRoleService(
-			provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext()));
+			provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 
 		await Assert.ThrowsAsync<InvalidOperationException>(
 			() => roleService.SetRoleAsync(user.Id, IdentityRoleNames.Guest, actorUserId: user.Id));
@@ -157,7 +157,7 @@ public class UserRoleServiceInfraTests
 			await userManager.SetLockoutEndDateAsync(expired, DateTimeOffset.UtcNow.AddMinutes(-1));
 
 			var roleService = new UserRoleService(
-				provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext()));
+				provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 			var listed = await roleService.ListAsync();
 
 			foreach (var user in new[] { active, locked, expired, roleless })
@@ -206,7 +206,7 @@ public class UserRoleServiceInfraTests
 
 		var actorUserId = "actor-" + Guid.NewGuid().ToString("N")[..8];
 		var roleService = new UserRoleService(
-			provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext()));
+			provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 
 		// Member로 맞춘다 - 새로 붙는 역할은 없고 Guest만 떨어진다. 실제 권한 축소이므로 남아야 한다.
 		await roleService.SetRoleAsync(user.Id, IdentityRoleNames.Member, actorUserId);
@@ -251,7 +251,7 @@ public class UserRoleServiceInfraTests
 
 		var actorUserId = "actor-" + Guid.NewGuid().ToString("N")[..8];
 		var roleService = new UserRoleService(
-			provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext()));
+			provider.GetRequiredService<ApplicationDbContext>(), userManager, new AuditLogger(CreateDbContext(), TimeProvider.System), TimeProvider.System);
 		await roleService.SetRoleAsync(user.Id, IdentityRoleNames.Member, actorUserId);
 		await roleService.SetLockedOutAsync(user.Id, lockedOut: true, actorUserId);
 

@@ -18,5 +18,5 @@ public sealed class DataProtectionCertificateRotationBackgroundService(
 			services.GetRequiredService<IOptions<DataProtectionCertificateOptions>>().Value,
 			cache,
 			services.GetRequiredService<IAuditLogger>(),
-			TimeProvider.System, cancellationToken);
+			services.GetRequiredService<TimeProvider>(), cancellationToken);
 }

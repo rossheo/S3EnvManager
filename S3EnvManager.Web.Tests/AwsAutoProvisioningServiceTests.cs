@@ -32,13 +32,13 @@ public class AwsAutoProvisioningServiceTests
 		var appIdentity = new FakeBootstrapAppIdentityProvisioner();
 		var credentialStore = new AwsBootstrapCredentialStore(
 			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
-			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance);
-		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext());
-		var auditLogger = new AuditLogger(CreateDbContext());
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance, TimeProvider.System);
+		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System);
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 		var registryService = new CmkRegistryService(
 			CreateDbContext(), auditLogger, new FakeAppCredentialProvisioner(), new FakeSecretObjectStore(),
-			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin);
-		var bucketSelfHeal = new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger);
+			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin, TimeProvider.System);
+		var bucketSelfHeal = new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger, TimeProvider.System);
 
 		var service = new AwsAutoProvisioningService(
 			sts, kmsAdmin, appIdentity, registryService, credentialStore,
@@ -114,13 +114,13 @@ public class AwsAutoProvisioningServiceTests
 		var appIdentity = new FakeBootstrapAppIdentityProvisioner();
 		var credentialStore = new AwsBootstrapCredentialStore(
 			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
-			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance);
-		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext());
-		var auditLogger = new AuditLogger(CreateDbContext());
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance, TimeProvider.System);
+		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System);
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 		var registryService = new CmkRegistryService(
 			CreateDbContext(), auditLogger, new FakeAppCredentialProvisioner(), new FakeSecretObjectStore(),
-			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin);
-		var bucketSelfHeal = new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger);
+			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin, TimeProvider.System);
+		var bucketSelfHeal = new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger, TimeProvider.System);
 
 		var managedTag = new Dictionary<string, string> { ["s3envmanager-managed"] = "true" };
 		var preExistingAdminArn = await kmsAdmin.CreateKeyAsync(
@@ -186,13 +186,13 @@ public class AwsAutoProvisioningServiceTests
 		var appIdentity = new FakeBootstrapAppIdentityProvisioner();
 		var credentialStore = new AwsBootstrapCredentialStore(
 			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
-			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance);
-		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext());
-		var auditLogger = new AuditLogger(CreateDbContext());
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance, TimeProvider.System);
+		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System);
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
 		var registryService = new CmkRegistryService(
 			CreateDbContext(), auditLogger, new FakeAppCredentialProvisioner(), new FakeSecretObjectStore(),
-			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin);
-		var bucketSelfHeal = new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger);
+			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin, TimeProvider.System);
+		var bucketSelfHeal = new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger, TimeProvider.System);
 
 		// 과거에 정상적으로 프로비저닝됐다가 레지스트리에서 제거되고 AWS에서도 삭제 예약된 app-facing
 		// CMK를 재현한다 - 별칭은 그 죽은 키를 계속 가리킨다(CmkRegistryService는 별칭을 정리하지 않는다).
@@ -243,28 +243,28 @@ public class AwsAutoProvisioningServiceTests
 
 		var appIdentity = new FakeBootstrapAppIdentityProvisioner();
 		var kmsAdmin = new FakeKmsKeyAdministration();
-		var auditLogger = new AuditLogger(CreateDbContext());
-		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext());
+		var auditLogger = new AuditLogger(CreateDbContext(), TimeProvider.System);
+		var primaryStorageSettingsStore = new PrimaryStorageSettingsStore(CreateDbContext(), TimeProvider.System);
 
 		// 한 키링으로 저장하고, 다른 키링을 가진 스토어로 읽는다 = 키링 유실 재현.
 		await new AwsBootstrapCredentialStore(
 			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
-			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance)
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance, TimeProvider.System)
 			.SaveAsync(CmkRole.App, "AKIAEXISTING", "existing-secret");
 		var credentialStore = new AwsBootstrapCredentialStore(
 			CreateDbContext(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
-			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance);
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<AwsBootstrapCredentialStore>.Instance, TimeProvider.System);
 		Assert.Equal(
 			BootstrapCredentialStatus.Unreadable, (await credentialStore.GetAsync(CmkRole.App)).Status);
 
 		var registryService = new CmkRegistryService(
 			CreateDbContext(), auditLogger, new FakeAppCredentialProvisioner(), new FakeSecretObjectStore(),
-			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin);
+			new FakeKmsKeyOperations(), appIdentity, primaryStorageSettingsStore, kmsAdmin, TimeProvider.System);
 		var service = new AwsAutoProvisioningService(
 			new FakeSecurityTokenService(), kmsAdmin, appIdentity, registryService, credentialStore,
 			new RuntimeAwsCredentialsOverride(), new RuntimeAwsCredentialsOverride(),
 			primaryStorageSettingsStore, new RuntimePrimaryStorageOverride(),
-			new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger),
+			new BucketSelfHealService(new FakeBucketComplianceOperations(), auditLogger, TimeProvider.System),
 			new BucketHealthStatusStore(), auditLogger);
 
 		var report = await service.EnsureProvisionedAsync(

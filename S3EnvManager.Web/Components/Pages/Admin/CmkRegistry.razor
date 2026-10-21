@@ -14,6 +14,7 @@
 @inject IKmsKeyAdministration KmsKeyAdministration
 @inject IDecryptCacheAdmin DecryptCacheAdmin
 @inject IAuditLogger AuditLogger
+@inject TimeProvider TimeProvider
 @inject IJSRuntime JsRuntime
 @inject ISnackbar Snackbar
 
@@ -161,7 +162,7 @@ else
 		_creating[role] = true;
 		try
 		{
-			var description = $"S3EnvManager {RoleLabel(role)} CMK ({DateTimeOffset.UtcNow:yyyy-MM-dd} CMK 레지스트리에서 생성)";
+			var description = $"S3EnvManager {RoleLabel(role)} CMK ({TimeProvider.GetUtcNow():yyyy-MM-dd} CMK 레지스트리에서 생성)";
 			var arn = await KmsKeyAdministration.CreateKeyAsync(description, KmsAliasConventions.ManagedTag);
 			await KmsKeyAdministration.EnableRotationAsync(arn);
 

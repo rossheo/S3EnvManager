@@ -4,7 +4,7 @@ using S3EnvManager.Database;
 namespace S3EnvManager.Web.Services;
 
 public sealed class AppDeletionService(
-	ApplicationDbContext db, IAppCredentialProvisioner provisioner, IAuditLogger auditLogger)
+	ApplicationDbContext db, IAppCredentialProvisioner provisioner, IAuditLogger auditLogger, TimeProvider timeProvider)
 	: IAppDeletionService
 {
 	public async Task DeleteAsync(
@@ -24,10 +24,10 @@ public sealed class AppDeletionService(
 		await provisioner.DeleteUserAsync(app.Name, cancellationToken).ConfigureAwait(false);
 		foreach (var credential in activeCredentials)
 		{
-			credential.RevokedAt = DateTimeOffset.UtcNow;
+			credential.RevokedAt = timeProvider.GetUtcNow();
 		}
 
-		app.DeletedAt = DateTimeOffset.UtcNow;
+		app.DeletedAt = timeProvider.GetUtcNow();
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
 		// 활성 자격증명이 없는 App도 삭제 자체는 반드시 남긴다 - CredentialRevoked만 남기면

@@ -14,6 +14,7 @@ public sealed class SecretBundleService(
 	[FromKeyedServices(CmkRole.App)] IKmsKeyOperations appKms,
 	IAuditLogger auditLogger,
 	IPrimaryStorageSettingsStore primaryStorageSettingsStore,
+	TimeProvider timeProvider,
 	// 데이터 키 재사용은 opt-in이라 배선하지 않으면 꺼진 동작이 된다 - 안전한 쪽이 기본이다.
 	IFeatureSwitchService? featureSwitchService = null,
 	IReusableDataKeyCache? reusableDataKeyCache = null)
@@ -273,7 +274,7 @@ public sealed class SecretBundleService(
 				if (existing!.ExpiresAt != newExpiresAt.Value)
 				{
 					existing.ExpiresAt = newExpiresAt.Value;
-					existing.UpdatedAt = DateTimeOffset.UtcNow;
+					existing.UpdatedAt = timeProvider.GetUtcNow();
 					changedKeys.Add(valueKey);
 				}
 			}
@@ -286,7 +287,7 @@ public sealed class SecretBundleService(
 					IsOverwriteBundle = isOverwriteBundle,
 					KeyName = valueKey,
 					ExpiresAt = newExpiresAt.Value,
-					UpdatedAt = DateTimeOffset.UtcNow,
+					UpdatedAt = timeProvider.GetUtcNow(),
 				});
 				changedKeys.Add(valueKey);
 			}
@@ -326,7 +327,7 @@ public sealed class SecretBundleService(
 
 		var references = editedReferences ?? new Dictionary<string, Guid>();
 		var changedKeys = new List<string>();
-		var now = DateTimeOffset.UtcNow;
+		var now = timeProvider.GetUtcNow();
 
 		foreach (var valueKey in editedValues.Keys)
 		{

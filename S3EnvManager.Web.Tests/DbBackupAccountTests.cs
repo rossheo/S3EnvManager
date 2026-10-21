@@ -28,8 +28,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
-			NullLogger<DbBackupAccountService>.Instance);
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 
 		// 역할을 우선 존재시킨 뒤 시퀀스 권한을 명시적으로 걷어낸다 - 공유 DB에서 이전 실행이나
 		// 수동 GRANT가 남긴 권한 때문에 아래 검증이 "우연히" 통과하는 것을 막기 위한 결정적 셋업이다.
@@ -95,8 +95,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
-			NullLogger<DbBackupAccountService>.Instance);
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.RotateNowAsync();
 		var info1 = await service.GetCurrentAsync();
 		var password1 = await service.RevealCurrentPasswordAsync();
@@ -148,8 +148,8 @@ public class DbBackupAccountTests
 		}
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
-			NullLogger<DbBackupAccountService>.Instance);
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.EnsureAsync();
 
 		var info = await service.GetCurrentAsync();
@@ -169,8 +169,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
-			NullLogger<DbBackupAccountService>.Instance);
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.EnsureAsync();
 		var info1 = await service.GetCurrentAsync();
 		var password1 = await service.RevealCurrentPasswordAsync();
@@ -197,8 +197,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
-			NullLogger<DbBackupAccountService>.Instance);
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.EnsureAsync();
 		var infoBefore = await service.GetCurrentAsync();
 		var passwordBefore = await service.RevealCurrentPasswordAsync();
@@ -247,8 +247,8 @@ public class DbBackupAccountTests
 		await EnsureActiveAdminCmkAsync(db);
 
 		var service = new DbBackupAccountService(
-			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext()),
-			NullLogger<DbBackupAccountService>.Instance);
+			CreateDbContext(), CreateSecretKeyCipher(kms), new AuditLogger(CreateDbContext(), TimeProvider.System),
+			NullLogger<DbBackupAccountService>.Instance, TimeProvider.System);
 		await service.EnsureAsync();
 		var info = await service.GetCurrentAsync();
 
@@ -289,5 +289,5 @@ public class DbBackupAccountTests
 		new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(PostgresConnectionString).Options);
 
 	private static IAppSecretKeyCipher CreateSecretKeyCipher(FakeKmsKeyOperations kms) =>
-		new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache());
+		new AppSecretKeyCipher(CreateDbContext(), kms, new DataKeyCache(), TimeProvider.System);
 }

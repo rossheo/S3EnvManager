@@ -27,14 +27,14 @@ public class UserNotificationSettingsServiceTests
 
 		await using var db = CreateDbContext();
 		var user = await RegisterUserAsync(db);
-		var settingsService = new UserNotificationSettingsService(db, DataProtection);
+		var settingsService = new UserNotificationSettingsService(db, DataProtection, TimeProvider.System);
 
 		var error = await settingsService.SaveAsync(
 			user.Id, "https://discord.com/api/webhooks/12345/abcXYZ", 7);
 		Assert.Null(error);
 
 		await using var verifyDb = CreateDbContext();
-		var verifyService = new UserNotificationSettingsService(verifyDb, DataProtection);
+		var verifyService = new UserNotificationSettingsService(verifyDb, DataProtection, TimeProvider.System);
 		var loaded = await verifyService.GetAsync(user.Id);
 		Assert.Equal("https://discord.com/api/webhooks/12345/abcXYZ", loaded.WebhookUrl);
 		Assert.Equal(7, loaded.NotifyDaysBeforeExpiration);
@@ -55,7 +55,7 @@ public class UserNotificationSettingsServiceTests
 
 		await using var db = CreateDbContext();
 		var user = await RegisterUserAsync(db);
-		var settingsService = new UserNotificationSettingsService(db, DataProtection);
+		var settingsService = new UserNotificationSettingsService(db, DataProtection, TimeProvider.System);
 
 		var error = await settingsService.SaveAsync(user.Id, "https://evil.example.com/not-discord", 7);
 		Assert.NotNull(error);
@@ -74,7 +74,7 @@ public class UserNotificationSettingsServiceTests
 
 		await using var db = CreateDbContext();
 		var user = await RegisterUserAsync(db);
-		var settingsService = new UserNotificationSettingsService(db, DataProtection);
+		var settingsService = new UserNotificationSettingsService(db, DataProtection, TimeProvider.System);
 
 		var error = await settingsService.SaveAsync(
 			user.Id, "https://discord.com/api/webhooks/1/token", 0);
@@ -91,7 +91,7 @@ public class UserNotificationSettingsServiceTests
 
 		await using var db = CreateDbContext();
 		var user = await RegisterUserAsync(db);
-		var switchService = new UserNotificationAlertSwitchService(db);
+		var switchService = new UserNotificationAlertSwitchService(db, TimeProvider.System);
 
 		var defaultEnabled = await switchService.IsEnabledAsync(
 			user.Id, UserNotificationAlertTypes.KeyExpiration);
@@ -100,7 +100,7 @@ public class UserNotificationSettingsServiceTests
 		await switchService.SetEnabledAsync(user.Id, UserNotificationAlertTypes.KeyExpiration, false);
 
 		await using var verifyDb = CreateDbContext();
-		var verifySwitchService = new UserNotificationAlertSwitchService(verifyDb);
+		var verifySwitchService = new UserNotificationAlertSwitchService(verifyDb, TimeProvider.System);
 		var list = await verifySwitchService.ListAsync(user.Id);
 		var keyExpirationSwitch = Assert.Single(
 			list, s => s.AlertType == UserNotificationAlertTypes.KeyExpiration);

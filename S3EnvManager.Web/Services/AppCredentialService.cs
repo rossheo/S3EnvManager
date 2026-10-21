@@ -10,7 +10,8 @@ public sealed class AppCredentialService(
 	IAppCredentialProvisioner provisioner,
 	IAppSecretKeyCipher secretKeyCipher,
 	IAuditLogger auditLogger,
-	IPrimaryStorageSettingsStore primaryStorageSettingsStore) : IAppCredentialService
+	IPrimaryStorageSettingsStore primaryStorageSettingsStore,
+	TimeProvider timeProvider) : IAppCredentialService
 {
 	public async Task<(AppCredential Credential, string SecretAccessKey)> IssueAsync(
 		Guid appId, string? actorUserId = null, CancellationToken cancellationToken = default)
@@ -44,7 +45,7 @@ public sealed class AppCredentialService(
 			AccessKeyId = provisioned.AccessKeyId,
 			EncryptedSecretKey = ciphertext,
 			DataKeyId = dataKeyId,
-			IssuedAt = DateTimeOffset.UtcNow,
+			IssuedAt = timeProvider.GetUtcNow(),
 		};
 		db.AppCredentials.Add(credential);
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -84,7 +85,7 @@ public sealed class AppCredentialService(
 
 		await provisioner.RevokeAccessKeyAsync(credential.App!.Name, credential.AccessKeyId, cancellationToken)
 			.ConfigureAwait(false);
-		credential.RevokedAt = DateTimeOffset.UtcNow;
+		credential.RevokedAt = timeProvider.GetUtcNow();
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
 		var details = System.Text.Json.JsonSerializer.Serialize(

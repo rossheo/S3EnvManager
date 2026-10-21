@@ -12,7 +12,7 @@ public class PrimaryStorageSettingsStoreTests
 			.Options);
 
 	private static IPrimaryStorageSettingsStore CreateStore(ApplicationDbContext db) =>
-		new PrimaryStorageSettingsStore(db);
+		new PrimaryStorageSettingsStore(db, TimeProvider.System);
 
 	[Fact]
 	public async Task SaveAndGet_RoundTrips()

@@ -6,7 +6,7 @@ using S3EnvManager.Database.Models;
 namespace S3EnvManager.Web.Services;
 
 public sealed class UserNotificationSettingsService(
-	ApplicationDbContext db, IDataProtectionProvider dataProtectionProvider)
+	ApplicationDbContext db, IDataProtectionProvider dataProtectionProvider, TimeProvider timeProvider)
 	: IUserNotificationSettingsService
 {
 	public async Task<UserNotificationSettingsInfo> GetAsync(
@@ -69,7 +69,7 @@ public sealed class UserNotificationSettingsService(
 					UserId = userId,
 					ProtectedDiscordWebhookUrl = protectedUrl,
 					NotifyDaysBeforeExpiration = dDayDays,
-					UpdatedAt = DateTimeOffset.UtcNow,
+					UpdatedAt = timeProvider.GetUtcNow(),
 				};
 				db.UserNotificationSettings.Add(existing);
 			}
@@ -77,7 +77,7 @@ public sealed class UserNotificationSettingsService(
 			{
 				existing.ProtectedDiscordWebhookUrl = protectedUrl;
 				existing.NotifyDaysBeforeExpiration = dDayDays;
-				existing.UpdatedAt = DateTimeOffset.UtcNow;
+				existing.UpdatedAt = timeProvider.GetUtcNow();
 			}
 			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

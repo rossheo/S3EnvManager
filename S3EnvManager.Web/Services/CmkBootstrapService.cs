@@ -9,14 +9,18 @@ namespace S3EnvManager.Web.Services;
 public static class CmkBootstrapService
 {
 	public static async Task EnsureBootstrapCmksSeededAsync(
-		ApplicationDbContext db, CmkBootstrapOptions options, CancellationToken cancellationToken = default)
+		ApplicationDbContext db, CmkBootstrapOptions options, TimeProvider timeProvider,
+		CancellationToken cancellationToken = default)
 	{
-		await EnsureRoleSeededAsync(db, CmkRole.Admin, options.AdminArn, cancellationToken).ConfigureAwait(false);
-		await EnsureRoleSeededAsync(db, CmkRole.App, options.AppArn, cancellationToken).ConfigureAwait(false);
+		await EnsureRoleSeededAsync(db, CmkRole.Admin, options.AdminArn, timeProvider, cancellationToken)
+			.ConfigureAwait(false);
+		await EnsureRoleSeededAsync(db, CmkRole.App, options.AppArn, timeProvider, cancellationToken)
+			.ConfigureAwait(false);
 	}
 
 	private static async Task EnsureRoleSeededAsync(
-		ApplicationDbContext db, CmkRole role, string? arn, CancellationToken cancellationToken)
+		ApplicationDbContext db, CmkRole role, string? arn, TimeProvider timeProvider,
+		CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrWhiteSpace(arn))
 		{
@@ -37,7 +41,7 @@ public static class CmkBootstrapService
 			Arn = arn,
 			Role = role,
 			Status = CmkStatus.Active,
-			CreatedAt = DateTimeOffset.UtcNow,
+			CreatedAt = timeProvider.GetUtcNow(),
 		});
 		await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 	}

@@ -4,7 +4,7 @@ using S3EnvManager.Database.Models;
 
 namespace S3EnvManager.Web.Services;
 
-public sealed class FeatureSwitchService(ApplicationDbContext db, IAuditLogger auditLogger)
+public sealed class FeatureSwitchService(ApplicationDbContext db, IAuditLogger auditLogger, TimeProvider timeProvider)
 	: IFeatureSwitchService
 {
 	public async Task<bool> IsEnabledAsync(string key, CancellationToken cancellationToken = default)
@@ -62,13 +62,13 @@ public sealed class FeatureSwitchService(ApplicationDbContext db, IAuditLogger a
 			var previousEnabled = existing?.Enabled;
 			if (existing is null)
 			{
-				existing = new FeatureSwitch { Key = key, Enabled = enabled, UpdatedAt = DateTimeOffset.UtcNow };
+				existing = new FeatureSwitch { Key = key, Enabled = enabled, UpdatedAt = timeProvider.GetUtcNow() };
 				db.FeatureSwitches.Add(existing);
 			}
 			else
 			{
 				existing.Enabled = enabled;
-				existing.UpdatedAt = DateTimeOffset.UtcNow;
+				existing.UpdatedAt = timeProvider.GetUtcNow();
 			}
 			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

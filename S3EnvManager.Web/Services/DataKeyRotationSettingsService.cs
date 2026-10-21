@@ -3,7 +3,7 @@ using S3EnvManager.Database;
 
 namespace S3EnvManager.Web.Services;
 
-public sealed class DataKeyRotationSettingsService(ApplicationDbContext db, IAuditLogger auditLogger)
+public sealed class DataKeyRotationSettingsService(ApplicationDbContext db, IAuditLogger auditLogger, TimeProvider timeProvider)
 	: IDataKeyRotationSettingsService
 {
 	public async Task<Int32> GetIntervalDaysAsync(CancellationToken cancellationToken = default)
@@ -46,14 +46,14 @@ public sealed class DataKeyRotationSettingsService(ApplicationDbContext db, IAud
 				settings = new Database.Models.DataKeyRotationSettings
 				{
 					RotationIntervalDays = days,
-					UpdatedAt = DateTimeOffset.UtcNow,
+					UpdatedAt = timeProvider.GetUtcNow(),
 				};
 				db.DataKeyRotationSettings.Add(settings);
 			}
 			else
 			{
 				settings.RotationIntervalDays = days;
-				settings.UpdatedAt = DateTimeOffset.UtcNow;
+				settings.UpdatedAt = timeProvider.GetUtcNow();
 			}
 			await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
