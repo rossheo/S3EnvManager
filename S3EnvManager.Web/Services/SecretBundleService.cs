@@ -36,12 +36,14 @@ public sealed class SecretBundleService(
 		var stored = await store.GetCurrentAsync(bucket, key, cancellationToken).ConfigureAwait(false);
 		if (stored is null)
 		{
-			return new SecretEditSession(new Dictionary<string, string>(), null, expirations);
+			return new SecretEditSession(
+				new Dictionary<string, string>(), null, expirations, SecretComments.Empty);
 		}
 
-		var values = await SopsEnvelopeCodec.DecryptAsAdminAsync(stored.Content, kms, cancellationToken)
+		var lines = await SopsEnvelopeCodec.DecryptLinesAsAdminAsync(stored.Content, kms, cancellationToken)
 			.ConfigureAwait(false);
-		return new SecretEditSession(values, stored.ETag, expirations);
+		var (values, comments) = SecretComments.Split(lines);
+		return new SecretEditSession(values, stored.ETag, expirations, comments);
 	}
 
 	public async Task<SaveOutcome> SaveAsync(
@@ -54,8 +56,13 @@ public sealed class SecretBundleService(
 		SecretBundleKind kind = SecretBundleKind.Base,
 		IReadOnlyDictionary<string, DateTimeOffset?>? editedExpirations = null,
 		IReadOnlyDictionary<string, Guid>? editedReferences = null,
+		IReadOnlyList<SecretComment>? baseComments = null,
+		IReadOnlyList<SecretComment>? editedComments = null,
 		CancellationToken cancellationToken = default)
 	{
+		baseComments ??= SecretComments.Empty;
+		editedComments ??= SecretComments.Empty;
+
 		// Blazor Server는 클라이언트가 보낸 문자열을 그대로 바인딩하므로 화면 입력 제약과 무관하게
 		// 서버 사이드에서 반드시 다시 검증해야 한다.
 		foreach (var editedKey in editedValues.Keys)
@@ -65,6 +72,11 @@ public sealed class SecretBundleService(
 			{
 				return new SaveFailed($"키 이름이 올바르지 않습니다: {keyError}");
 			}
+		}
+		var commentError = SecretComments.Validate(editedComments);
+		if (commentError is not null)
+		{
+			return new SaveFailed(commentError);
 		}
 
 		// NpgsqlRetryingExecutionStrategy는 수동 트랜잭션을 재시도 단위 밖에서 여는 것을 허용하지
@@ -91,7 +103,8 @@ public sealed class SecretBundleService(
 				: lockedEnv.OverwriteLastKnownETag;
 			if (trackedETag != baseETag)
 			{
-				return await BuildConflictAsync(bucket, key, baseSnapshot, editedValues, cancellationToken)
+				return await BuildConflictAsync(
+					bucket, key, baseSnapshot, editedValues, baseComments, editedComments, cancellationToken)
 					.ConfigureAwait(false);
 			}
 
@@ -115,8 +128,9 @@ public sealed class SecretBundleService(
 				reusableDataKey = cachedDataKey;
 			}
 
-			var encryptResult = await SopsEnvelopeCodec.EncryptAsync(
-				editedValues, adminArn, appArn, app.Name, kms, appKms, reusableDataKey, cancellationToken)
+			var editedLines = SecretComments.Compose(editedValues, editedComments);
+			var encryptResult = await SopsEnvelopeCodec.EncryptLinesAsync(
+				editedLines, adminArn, appArn, app.Name, kms, appKms, reusableDataKey, cancellationToken)
 				.ConfigureAwait(false);
 
 			// 방금 만든 키만 캐시에 넣는다(재사용분을 다시 넣으면 수명이 무한정 연장된다).
@@ -137,9 +151,10 @@ public sealed class SecretBundleService(
 				var verifyStored = await store.GetCurrentAsync(bucket, key, cancellationToken)
 					.ConfigureAwait(false)
 					?? throw new InvalidOperationException("방금 저장한 오브젝트를 다시 읽을 수 없습니다.");
-				var verifiedValues = SopsEnvelopeCodec.DecryptWithDataKeyAndVerifyTrailer(
+				// 값뿐 아니라 주석과 줄 순서까지 그대로 읽히는지 확인한다.
+				var verifiedLines = SopsEnvelopeCodec.DecryptLinesWithDataKeyAndVerifyTrailer(
 					verifyStored.Content, encryptResult.DataKey, adminArn, appArn);
-				verificationPassed = ValuesEqual(verifiedValues, editedValues);
+				verificationPassed = verifiedLines.SequenceEqual(editedLines);
 			}
 			catch
 			{
@@ -187,7 +202,8 @@ public sealed class SecretBundleService(
 
 			// 값 자체는 시크릿이므로 절대 로그에 남기지 않는다.
 			var diff = DescribeKeyDiff(
-				baseSnapshot, editedValues, changedExpirationKeys, changedReferenceKeys);
+				baseSnapshot, editedValues, changedExpirationKeys, changedReferenceKeys,
+				commentsChanged: !editedComments.SequenceEqual(baseComments));
 			if (diff is not null)
 			{
 				var eventType = kind == SecretBundleKind.Base
@@ -395,18 +411,22 @@ public sealed class SecretBundleService(
 		string key,
 		IReadOnlyDictionary<string, string> baseSnapshot,
 		IReadOnlyDictionary<string, string> mineValues,
+		IReadOnlyList<SecretComment> baseComments,
+		IReadOnlyList<SecretComment> mineComments,
 		CancellationToken cancellationToken)
 	{
 		var theirsStored = await store.GetCurrentAsync(bucket, key, cancellationToken).ConfigureAwait(false);
-		var theirsValues = theirsStored is null
-			? new Dictionary<string, string>()
-			: await SopsEnvelopeCodec.DecryptAsAdminAsync(theirsStored.Content, kms, cancellationToken)
+		var theirsLines = theirsStored is null
+			? []
+			: await SopsEnvelopeCodec.DecryptLinesAsAdminAsync(theirsStored.Content, kms, cancellationToken)
 				.ConfigureAwait(false);
+		var (theirsValues, theirsComments) = SecretComments.Split(theirsLines);
 
 		var report = SecretMerge.Merge(baseSnapshot, mineValues, theirsValues);
 		return new SaveConflict(
 			report.MergedValues, report.AutoAppliedTheirsKeys, report.RealConflicts, theirsValues,
-			theirsStored?.ETag);
+			theirsStored?.ETag,
+			SecretComments.Merge(baseComments, mineComments, theirsComments), theirsComments);
 	}
 
 	private async Task<string> GetActiveCmkArnAsync(CmkRole role, CancellationToken cancellationToken)
@@ -441,12 +461,14 @@ public sealed class SecretBundleService(
 	}
 
 	// 추가/변경/삭제된 키 이름과 만료일이 바뀐 키 이름만 담는다(값/만료일 자체는 절대 포함하지
-	// 않음). 아무것도 안 바뀌었으면 null.
+	// 않음). 주석은 접속 정보 등 민감한 내용이 들어갈 수 있어 바뀌었는지 여부만 남긴다.
+	// 아무것도 안 바뀌었으면 null.
 	private static string? DescribeKeyDiff(
 		IReadOnlyDictionary<string, string> before,
 		IReadOnlyDictionary<string, string> after,
 		IReadOnlyList<string> expirationsChanged,
-		IReadOnlyList<string> referencesChanged)
+		IReadOnlyList<string> referencesChanged,
+		bool commentsChanged)
 	{
 		var added = after.Keys.Where(k => !before.ContainsKey(k))
 			.OrderBy(k => k, StringComparer.Ordinal).ToList();
@@ -460,7 +482,8 @@ public sealed class SecretBundleService(
 			.OrderBy(k => k, StringComparer.Ordinal).ToList();
 
 		var nothingChanged = added.Count == 0 && removed.Count == 0 && changed.Count == 0
-			&& expirationsChangedSorted.Count == 0 && referencesChangedSorted.Count == 0;
+			&& expirationsChangedSorted.Count == 0 && referencesChangedSorted.Count == 0
+			&& !commentsChanged;
 		if (nothingChanged)
 		{
 			return null;
@@ -472,24 +495,8 @@ public sealed class SecretBundleService(
 				added, changed, removed,
 				expirationsChanged = expirationsChangedSorted,
 				referencesChanged = referencesChangedSorted,
+				commentsChanged,
 			},
 			AuditJsonOptions.Default);
-	}
-
-	private static bool ValuesEqual(
-		IReadOnlyDictionary<string, string> a, IReadOnlyDictionary<string, string> b)
-	{
-		if (a.Count != b.Count)
-		{
-			return false;
-		}
-		foreach (var (key, value) in a)
-		{
-			if (!b.TryGetValue(key, out var otherValue) || otherValue != value)
-			{
-				return false;
-			}
-		}
-		return true;
 	}
 }

@@ -23,6 +23,8 @@ public interface ISharedSecretReferenceService
 		string? actorEmail,
 		SecretBundleKind kind,
 		IReadOnlyDictionary<string, DateTimeOffset?>? editedOwnExpirations = null,
+		IReadOnlyList<SecretComment>? baseComments = null,
+		IReadOnlyList<SecretComment>? editedComments = null,
 		CancellationToken cancellationToken = default);
 
 	// 사용자가 명시적으로 "연결 해제"를 눌렀을 때 - 값은 이미 번들에 materialize돼 있으므로

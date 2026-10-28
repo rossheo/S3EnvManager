@@ -205,9 +205,11 @@ public sealed class SharedSecretService(
 			editedReferences[keyName] = sharedSecretId;
 		}
 
+		// 재materialize는 값만 바꾸는 저장이므로 기존 주석을 그대로 유지한다.
 		return await bundleService.SaveAsync(
 			envId, session.Values, session.BaseETag, editedValues, actorUserId, actorEmail: null, kind,
-			editedExpirations: null, editedReferences, cancellationToken).ConfigureAwait(false);
+			editedExpirations: null, editedReferences, session.Comments, session.Comments,
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	public async Task DeleteAsync(

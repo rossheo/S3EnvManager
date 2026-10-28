@@ -19,8 +19,25 @@ public static class SopsEnvelopeCodec
 	/// 여부와 한도는 이 패키지가 정하지 않는다 - 호출자(S3EnvManager.Web)의 정책이다. 넘긴 값이
 	/// 이 <paramref name="appName"/>/CMK ARN 조합으로 감싼 것이 아니면, 트레일러가 실제 wrap과
 	/// 다른 encryption context를 주장하게 되어 그 번들은 영구히 복호화 불가능해진다.</param>
-	public static async Task<SopsEncryptResult> EncryptAsync(
+	public static Task<SopsEncryptResult> EncryptAsync(
 		IEnumerable<KeyValuePair<string, string>> plaintextValues,
+		string adminCmkArn,
+		string appCmkArn,
+		string appName,
+		IKmsKeyOperations adminKms,
+		IKmsKeyOperations appKms,
+		SopsWrappedDataKey? reusableDataKey = null,
+		CancellationToken cancellationToken = default) =>
+		EncryptLinesAsync(
+			plaintextValues.Select(kv => SopsDotEnvLine.Entry(kv.Key, kv.Value)),
+			adminCmkArn, appCmkArn, appName, adminKms, appKms, reusableDataKey, cancellationToken);
+
+	/// <summary>
+	/// <see cref="EncryptAsync"/>와 같지만 주석 줄까지 순서대로 받는다. 주석은 sops와 동일하게
+	/// "#ENC[...,type:comment]"로 암호화하고 MAC 계산에서는 제외한다.
+	/// </summary>
+	public static async Task<SopsEncryptResult> EncryptLinesAsync(
+		IEnumerable<SopsDotEnvLine> plaintextLines,
 		string adminCmkArn,
 		string appCmkArn,
 		string appName,
@@ -55,11 +72,19 @@ public static class SopsEnvelopeCodec
 		};
 
 		var macCalculator = new SopsMacCalculator();
-		foreach (var (key, plaintext) in plaintextValues)
+		foreach (var line in plaintextLines)
 		{
-			macCalculator.Append(plaintext);
-			var encryptedValue = SopsValueCipher.Encrypt(plaintext, dataKey, ValueAdditionalData(key));
-			document.Entries.Add(new KeyValuePair<string, string>(key, encryptedValue));
+			if (line.IsComment)
+			{
+				document.Lines.Add(SopsDotEnvLine.Comment(SopsValueCipher.Encrypt(
+					line.Value, dataKey, CommentAdditionalData, CommentValueType)));
+				continue;
+			}
+
+			macCalculator.Append(line.Value);
+			var encryptedValue = SopsValueCipher.Encrypt(
+				line.Value, dataKey, ValueAdditionalData(line.Key!));
+			document.Lines.Add(SopsDotEnvLine.Entry(line.Key!, encryptedValue));
 		}
 
 		document.KmsEntries.Add(
@@ -97,6 +122,29 @@ public static class SopsEnvelopeCodec
 		CancellationToken cancellationToken = default)
 	{
 		var document = SopsDotEnvDocument.Parse(fileContent);
+		var dataKey = await UnwrapDataKeyAsync(document, kmsEntryIndex, kms, cancellationToken)
+			.ConfigureAwait(false);
+		return ToValues(DecryptLines(document, dataKey, includeComments: false));
+	}
+
+	/// <summary>
+	/// S3EnvManager의 재편집 경로 - <see cref="DecryptAsAdminAsync"/>와 같지만 주석 줄까지 파일
+	/// 순서대로 돌려준다. Application 경로(<see cref="DecryptAsAppAsync"/>)는 주석을 아예 복호화하지
+	/// 않는다.
+	/// </summary>
+	public static async Task<List<SopsDotEnvLine>> DecryptLinesAsAdminAsync(
+		string fileContent, IKmsKeyOperations kms, CancellationToken cancellationToken = default)
+	{
+		var document = SopsDotEnvDocument.Parse(fileContent);
+		var dataKey = await UnwrapDataKeyAsync(document, kmsEntryIndex: 0, kms, cancellationToken)
+			.ConfigureAwait(false);
+		return DecryptLines(document, dataKey, includeComments: true);
+	}
+
+	private static async Task<byte[]> UnwrapDataKeyAsync(
+		SopsDotEnvDocument document, Int32 kmsEntryIndex, IKmsKeyOperations kms,
+		CancellationToken cancellationToken)
+	{
 		if (kmsEntryIndex < 0 || kmsEntryIndex >= document.KmsEntries.Count)
 		{
 			throw new InvalidOperationException(
@@ -104,11 +152,9 @@ public static class SopsEnvelopeCodec
 		}
 
 		var entry = document.KmsEntries[kmsEntryIndex];
-		var dataKey = await kms.DecryptAsync(
+		return await kms.DecryptAsync(
 			entry.Arn, entry.CiphertextBlob, entry.EncryptionContext, cancellationToken)
 			.ConfigureAwait(false);
-
-		return DecryptWithDataKey(document, dataKey);
 	}
 
 	/// <summary>
@@ -119,7 +165,7 @@ public static class SopsEnvelopeCodec
 	/// 확인하려면 <see cref="DecryptWithDataKeyAndVerifyTrailer"/>를 쓴다.
 	/// </summary>
 	public static Dictionary<string, string> DecryptWithDataKey(string fileContent, byte[] dataKey) =>
-		DecryptWithDataKey(SopsDotEnvDocument.Parse(fileContent), dataKey);
+		ToValues(DecryptLines(SopsDotEnvDocument.Parse(fileContent), dataKey, includeComments: false));
 
 	/// <summary>
 	/// <see cref="DecryptWithDataKey(string,byte[])"/>와 같지만, 트레일러가 정확히 admin/app
@@ -134,6 +180,13 @@ public static class SopsEnvelopeCodec
 	/// 주장할 수 없기 때문이다(구성상 보장, 이 함수가 매번 새로 확인하는 게 아님).
 	/// </summary>
 	public static Dictionary<string, string> DecryptWithDataKeyAndVerifyTrailer(
+		string fileContent, byte[] dataKey, string expectedAdminCmkArn, string expectedAppCmkArn) =>
+		ToValues(DecryptLinesWithDataKeyAndVerifyTrailer(
+			fileContent, dataKey, expectedAdminCmkArn, expectedAppCmkArn));
+
+	/// <summary><see cref="DecryptWithDataKeyAndVerifyTrailer"/>와 같지만 주석 줄까지 파일 순서대로
+	/// 돌려준다 - 저장 직후 자체 검증에서 주석 유실도 잡아내기 위한 것이다.</summary>
+	public static List<SopsDotEnvLine> DecryptLinesWithDataKeyAndVerifyTrailer(
 		string fileContent, byte[] dataKey, string expectedAdminCmkArn, string expectedAppCmkArn)
 	{
 		var document = SopsDotEnvDocument.Parse(fileContent);
@@ -148,18 +201,28 @@ public static class SopsEnvelopeCodec
 				"저장된 KMS 트레일러가 예상과 다릅니다(엔트리 손상/누락 의심).");
 		}
 
-		return DecryptWithDataKey(document, dataKey);
+		return DecryptLines(document, dataKey, includeComments: true);
 	}
 
-	private static Dictionary<string, string> DecryptWithDataKey(SopsDotEnvDocument document, byte[] dataKey)
+	private static List<SopsDotEnvLine> DecryptLines(
+		SopsDotEnvDocument document, byte[] dataKey, bool includeComments)
 	{
-		var values = new Dictionary<string, string>();
+		var lines = new List<SopsDotEnvLine>();
 		var macCalculator = new SopsMacCalculator();
-		foreach (var (key, encryptedValue) in document.Entries)
+		foreach (var line in document.Lines)
 		{
-			var plaintext = SopsValueCipher.Decrypt(encryptedValue, dataKey, ValueAdditionalData(key));
+			if (line.IsComment)
+			{
+				if (includeComments)
+				{
+					lines.Add(SopsDotEnvLine.Comment(DecryptComment(line.Value, dataKey)));
+				}
+				continue;
+			}
+
+			var plaintext = SopsValueCipher.Decrypt(line.Value, dataKey, ValueAdditionalData(line.Key!));
 			macCalculator.Append(plaintext);
-			values[key] = plaintext;
+			lines.Add(SopsDotEnvLine.Entry(line.Key!, plaintext));
 		}
 
 		var computedMac = macCalculator.ComputeHex();
@@ -172,8 +235,38 @@ public static class SopsEnvelopeCodec
 				innerException: new InvalidOperationException("MAC mismatch"));
 		}
 
+		return lines;
+	}
+
+	// sops는 주석 복호화에 실패하면(평문 주석을 쓰던 옛 버전 파일 등) 경고만 남기고 원문을 그대로
+	// 둔다. 주석은 MAC 대상이 아니므로 같은 방식으로 원문을 보존한다.
+	private static string DecryptComment(string rawComment, byte[] dataKey)
+	{
+		try
+		{
+			return SopsValueCipher.Decrypt(rawComment, dataKey, CommentAdditionalData);
+		}
+		catch (Exception ex) when (ex is FormatException or CryptographicMacException)
+		{
+			return rawComment;
+		}
+	}
+
+	// 같은 키가 여러 번 나오면 마지막 값이 이긴다(기존 Dictionary 동작 유지).
+	private static Dictionary<string, string> ToValues(IEnumerable<SopsDotEnvLine> lines)
+	{
+		var values = new Dictionary<string, string>();
+		foreach (var line in lines.Where(l => !l.IsComment))
+		{
+			values[line.Key!] = line.Value;
+		}
 		return values;
 	}
+
+	// sops는 경로 세그먼트를 ":"로 이어 붙이고 끝에 ":"를 더한다. 주석은 경로에 키를 더하지 않으므로
+	// 최상위 주석의 additional data는 빈 경로 + ":"이다.
+	private const string CommentAdditionalData = ":";
+	private const string CommentValueType = "comment";
 
 	private static string ValueAdditionalData(string key) => $"{key}:";
 

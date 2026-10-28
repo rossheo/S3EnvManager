@@ -41,6 +41,8 @@ public sealed class SharedSecretReferenceService(
 		string? actorEmail,
 		SecretBundleKind kind,
 		IReadOnlyDictionary<string, DateTimeOffset?>? editedOwnExpirations = null,
+		IReadOnlyList<SecretComment>? baseComments = null,
+		IReadOnlyList<SecretComment>? editedComments = null,
 		CancellationToken cancellationToken = default)
 	{
 		if (editedReferences.Count == 0)
@@ -48,7 +50,8 @@ public sealed class SharedSecretReferenceService(
 			// 참조가 아예 없으면 기존 경로와 완전히 동일하게 동작한다(회귀 없음).
 			return await bundleService.SaveAsync(
 				envId, baseSnapshot, baseETag, editedOwnValues, actorUserId, actorEmail, kind,
-				editedOwnExpirations, editedReferences, cancellationToken).ConfigureAwait(false);
+				editedOwnExpirations, editedReferences, baseComments, editedComments, cancellationToken)
+				.ConfigureAwait(false);
 		}
 
 		var collidingKey = editedReferences.Keys.FirstOrDefault(editedOwnValues.ContainsKey);
@@ -100,7 +103,8 @@ public sealed class SharedSecretReferenceService(
 
 		var outcome = await bundleService.SaveAsync(
 			envId, baseSnapshot, baseETag, finalValues, actorUserId, actorEmail, kind,
-			editedOwnExpirations, editedReferences, cancellationToken).ConfigureAwait(false);
+			editedOwnExpirations, editedReferences, baseComments, editedComments, cancellationToken)
+			.ConfigureAwait(false);
 
 		if (outcome is SaveSuccess)
 		{

@@ -19,6 +19,8 @@ public interface ISecretBundleService
 	// 그랜트 검증과 값 resolve를 마친 뒤 넘긴다 - 여기서는 SharedSecretReference 행을
 	// KeyExpiration과 동일한 방식으로 같은 트랜잭션 안에서 upsert/delete만 한다(S3 PUT과 참조
 	// 행 기록이 분리되면 크래시로 dangling이 생길 수 있어 반드시 같은 트랜잭션이어야 한다).
+	// editedComments가 null이면 주석 없이 저장한다 - 기존 주석을 유지하려는 호출자는
+	// LoadForEditAsync가 준 Comments를 baseComments/editedComments로 그대로 넘겨야 한다.
 	Task<SaveOutcome> SaveAsync(
 		Guid envId,
 		IReadOnlyDictionary<string, string> baseSnapshot,
@@ -29,6 +31,8 @@ public interface ISecretBundleService
 		SecretBundleKind kind = SecretBundleKind.Base,
 		IReadOnlyDictionary<string, DateTimeOffset?>? editedExpirations = null,
 		IReadOnlyDictionary<string, Guid>? editedReferences = null,
+		IReadOnlyList<SecretComment>? baseComments = null,
+		IReadOnlyList<SecretComment>? editedComments = null,
 		CancellationToken cancellationToken = default);
 
 	// 값은 복호화하지 않으므로, 오래된 버전을 감쌌던 CMK가 제거되어 있어도 실패하지 않는다.

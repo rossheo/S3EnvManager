@@ -1,3 +1,4 @@
+using S3EnvManager.Sops;
 using S3EnvManager.Web.Services;
 
 namespace S3EnvManager.Web.Tests;
@@ -138,6 +139,48 @@ public class SecretBundleTextFormatTests
 		Assert.True(ok, error);
 		Assert.Equal(new Dictionary<string, string> { ["A"] = "1", ["B"] = "2" },
 			parsed.ToDictionary(kv => kv.Key, kv => kv.Value));
+	}
+
+	[Fact]
+	public void TryParseLines_HashLine_IsCommentWithoutKeyValidation()
+	{
+		var ok = SecretBundleTextFormat.TryParseLines(
+			"# 접속 정보\n## SASL type: PLAIN\nA=1\n#\n", out var lines, out var error);
+
+		Assert.True(ok, error);
+		Assert.Equal(
+			[
+				SopsDotEnvLine.Comment(" 접속 정보"),
+				SopsDotEnvLine.Comment("# SASL type: PLAIN"),
+				SopsDotEnvLine.Entry("A", "1"),
+				SopsDotEnvLine.Comment(""),
+			],
+			lines);
+	}
+
+	[Fact]
+	public void RoundTrips_CommentsVerbatim()
+	{
+		List<SopsDotEnvLine> original =
+		[
+			SopsDotEnvLine.Comment(@" JAAS: username=""tools\kafkio"""),
+			SopsDotEnvLine.Entry("A", "1"),
+		];
+
+		var ok = SecretBundleTextFormat.TryParseLines(
+			SecretBundleTextFormat.Format(original), out var parsed, out var error);
+
+		Assert.True(ok, error);
+		Assert.Equal(original, parsed);
+	}
+
+	[Fact]
+	public void TryParse_DropsComments()
+	{
+		var ok = SecretBundleTextFormat.TryParse("# note\nA=1\n", out var parsed, out var error);
+
+		Assert.True(ok, error);
+		Assert.Equal([new KeyValuePair<string, string>("A", "1")], parsed);
 	}
 
 	[Fact]

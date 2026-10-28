@@ -437,6 +437,106 @@ public class SecretBundleServiceTests
 		Assert.Empty(reloaded.Expirations);
 	}
 
+	[Fact]
+	public async Task SaveThenReload_PreservesComments_AndAuditsOnlyThatTheyChanged()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (app, env) = await fixture.RegisterAppAsync("comment-" + Guid.NewGuid().ToString("N")[..8]);
+		var service = fixture.CreateService();
+
+		var values = new Dictionary<string, string> { ["HOST"] = "picomq:9092", ["PASSWORD"] = "hunter2" };
+		IReadOnlyList<SecretComment> comments =
+		[
+			new SecretComment("HOST", " 접속 정보"),
+			new SecretComment("PASSWORD", "# SASL type: PLAIN"),
+			new SecretComment(null, " 끝"),
+		];
+		var outcome = await service.SaveAsync(
+			env.Id, new Dictionary<string, string>(), null, values, editedComments: comments);
+		Assert.IsType<SaveSuccess>(outcome);
+
+		var reloaded = await service.LoadForEditAsync(env.Id);
+		Assert.Equal(values, reloaded.Values);
+		Assert.Equal(comments, reloaded.Comments);
+
+		// 주석만 바꿔도 저장/감사 로그가 남되, 주석 내용 자체는 로그에 남지 않아야 한다.
+		IReadOnlyList<SecretComment> edited = [new SecretComment("HOST", " 바뀐 주석")];
+		var second = await service.SaveAsync(
+			env.Id, reloaded.Values, reloaded.BaseETag, reloaded.Values,
+			baseComments: reloaded.Comments, editedComments: edited);
+		Assert.IsType<SaveSuccess>(second);
+		Assert.Equal(edited, (await service.LoadForEditAsync(env.Id)).Comments);
+
+		await using var db = Fixture.CreateDbContextForAssertions();
+		var log = await db.AuditLogs.AsNoTracking()
+			.Where(l => l.AppId == app.Id)
+			.OrderByDescending(l => l.OccurredAt)
+			.FirstAsync();
+		Assert.Contains("\"commentsChanged\":true", log.Details);
+		Assert.DoesNotContain("바뀐 주석", log.Details);
+	}
+
+	[Fact]
+	public async Task Save_CommentWithNewline_IsRejected()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (_, env) = await fixture.RegisterAppAsync("comment-nl-" + Guid.NewGuid().ToString("N")[..8]);
+		var service = fixture.CreateService();
+
+		var outcome = await service.SaveAsync(
+			env.Id, new Dictionary<string, string>(), null, new Dictionary<string, string> { ["A"] = "1" },
+			editedComments: [new SecretComment(null, "x\nB=injected")]);
+
+		Assert.IsType<SaveFailed>(outcome);
+	}
+
+	// 다른 사용자가 주석만 바꾼 사이 내가 값만 바꿔 저장하면, 재시도 결과에 상대의 주석이 남아야 한다.
+	[Fact]
+	public async Task Conflict_TheirsChangedComments_MergedCommentsKeepTheirs()
+	{
+		if (!await IsEnvironmentAvailableAsync())
+		{
+			return;
+		}
+
+		var fixture = await Fixture.CreateAsync();
+		var (_, env) = await fixture.RegisterAppAsync("comment-merge-" + Guid.NewGuid().ToString("N")[..8]);
+		var service = fixture.CreateService();
+
+		Assert.IsType<SaveSuccess>(await service.SaveAsync(
+			env.Id, new Dictionary<string, string>(), null, new Dictionary<string, string> { ["A"] = "1" },
+			editedComments: [new SecretComment("A", " v1")]));
+		var sessionA = await service.LoadForEditAsync(env.Id);
+		var sessionB = await service.LoadForEditAsync(env.Id);
+
+		IReadOnlyList<SecretComment> theirsComments = [new SecretComment("A", " v2")];
+		Assert.IsType<SaveSuccess>(await service.SaveAsync(
+			env.Id, sessionB.Values, sessionB.BaseETag, sessionB.Values,
+			baseComments: sessionB.Comments, editedComments: theirsComments));
+
+		var conflict = Assert.IsType<SaveConflict>(await service.SaveAsync(
+			env.Id, sessionA.Values, sessionA.BaseETag, new Dictionary<string, string> { ["A"] = "2" },
+			baseComments: sessionA.Comments, editedComments: sessionA.Comments));
+		Assert.Equal(theirsComments, conflict.MergedComments);
+
+		Assert.IsType<SaveSuccess>(await service.SaveAsync(
+			env.Id, conflict.TheirsSnapshot, conflict.TheirsETag, conflict.MergedValues,
+			baseComments: conflict.TheirsComments, editedComments: conflict.MergedComments));
+		var final = await service.LoadForEditAsync(env.Id);
+		Assert.Equal("2", final.Values["A"]);
+		Assert.Equal(theirsComments, final.Comments);
+	}
+
 	private static Task<bool> IsEnvironmentAvailableAsync() => TestEnvironment.IsPostgresAvailableAsync();
 
 	private sealed class Fixture

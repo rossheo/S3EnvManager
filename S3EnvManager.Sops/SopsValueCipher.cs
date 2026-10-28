@@ -19,7 +19,12 @@ public static partial class SopsValueCipher
 	private static partial Regex EncryptedValuePattern();
 
 	/// <summary>평문 문자열 하나를 sops 포맷의 "ENC[...]" 문자열로 암호화한다.</summary>
-	public static string Encrypt(string plaintext, byte[] dataKey, string additionalData)
+	public static string Encrypt(string plaintext, byte[] dataKey, string additionalData) =>
+		Encrypt(plaintext, dataKey, additionalData, "str");
+
+	/// <summary><see cref="Encrypt(string,byte[],string)"/>와 같지만 type 표기를 지정한다. 주석은
+	/// "comment"로 넘긴다(sops와 동일한 type 표기).</summary>
+	public static string Encrypt(string plaintext, byte[] dataKey, string additionalData, string valueType)
 	{
 		if (plaintext.Length == 0)
 		{
@@ -33,7 +38,7 @@ public static partial class SopsValueCipher
 		var (data, tag) = SealCore(dataKey, iv, plainBytes, additionalData);
 
 		return $"ENC[AES256_GCM,data:{Convert.ToBase64String(data)},iv:{Convert.ToBase64String(iv)}," +
-			$"tag:{Convert.ToBase64String(tag)},type:str]";
+			$"tag:{Convert.ToBase64String(tag)},type:{valueType}]";
 	}
 
 	/// <summary>sops 포맷의 "ENC[...]" 문자열을 평문 문자열로 복호화한다.</summary>

@@ -11,7 +11,8 @@ public sealed partial class SopsDotEnvDocument
 	private const string FormatVersion = "3.13.2";
 	private const string UnencryptedSuffixDefault = "_unencrypted";
 
-	public List<KeyValuePair<string, string>> Entries { get; } = [];
+	/// <summary>키=값 줄과 주석 줄을 파일 순서 그대로 담는다(값/주석 모두 암호화된 원시 문자열).</summary>
+	public List<SopsDotEnvLine> Lines { get; } = [];
 
 	public List<SopsKmsEntry> KmsEntries { get; } = [];
 
@@ -37,6 +38,7 @@ public sealed partial class SopsDotEnvDocument
 			}
 			if (line[0] == '#')
 			{
+				document.Lines.Add(SopsDotEnvLine.Comment(line[1..]));
 				continue;
 			}
 
@@ -55,7 +57,7 @@ public sealed partial class SopsDotEnvDocument
 			}
 			else
 			{
-				document.Entries.Add(new KeyValuePair<string, string>(key, value));
+				document.Lines.Add(SopsDotEnvLine.Entry(key, value));
 			}
 		}
 
@@ -121,9 +123,16 @@ public sealed partial class SopsDotEnvDocument
 	public string Serialize()
 	{
 		var builder = new StringBuilder();
-		foreach (var (key, value) in Entries)
+		foreach (var line in Lines)
 		{
-			builder.Append(key).Append('=').Append(value).Append('\n');
+			if (line.IsComment)
+			{
+				builder.Append('#').Append(line.Value).Append('\n');
+			}
+			else
+			{
+				builder.Append(line.Key).Append('=').Append(line.Value).Append('\n');
+			}
 		}
 
 		var metadata = new SortedDictionary<string, string>(StringComparer.Ordinal);

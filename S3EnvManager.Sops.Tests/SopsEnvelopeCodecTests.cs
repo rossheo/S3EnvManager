@@ -128,6 +128,84 @@ public class SopsEnvelopeCodecTests
 				tamperedTrailer, result.DataKey, AdminCmkArn, AppCmkArn));
 	}
 
+	[Fact]
+	public async Task EncryptLinesThenDecryptLinesAsAdmin_PreservesCommentsInOrder()
+	{
+		var kms = new FakeKmsKeyOperations();
+		List<SopsDotEnvLine> original =
+		[
+			SopsDotEnvLine.Comment(" 접속 정보"),
+			SopsDotEnvLine.Comment("# security type: SASL"),
+			SopsDotEnvLine.Entry("FOO", "bar"),
+			SopsDotEnvLine.Comment(""),
+			SopsDotEnvLine.Entry("DB_PASSWORD", "hunter2"),
+			SopsDotEnvLine.Comment(" 끝"),
+		];
+
+		var fileContent = (await SopsEnvelopeCodec.EncryptLinesAsync(
+			original, AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
+
+		// sops와 같이 주석도 암호화되어 평문이 파일에 남지 않아야 한다.
+		Assert.DoesNotContain("접속 정보", fileContent);
+		Assert.Contains("type:comment]", fileContent);
+		Assert.Equal(original, await SopsEnvelopeCodec.DecryptLinesAsAdminAsync(fileContent, kms));
+	}
+
+	[Fact]
+	public async Task DecryptAsApp_IgnoresComments_ReturnsOnlyValues()
+	{
+		var kms = new FakeKmsKeyOperations();
+		var fileContent = (await SopsEnvelopeCodec.EncryptLinesAsync(
+			[SopsDotEnvLine.Comment(" note"), SopsDotEnvLine.Entry("FOO", "bar")],
+			AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
+
+		var decrypted = await SopsEnvelopeCodec.DecryptAsAppAsync(fileContent, kms);
+
+		Assert.Equal(new Dictionary<string, string> { ["FOO"] = "bar" }, decrypted);
+	}
+
+	// sops는 주석을 MAC에 넣지 않는다 - 주석이 있든 없든 같은 값이면 MAC 검증이 통과해야 한다.
+	[Fact]
+	public async Task Comments_AreExcludedFromMac()
+	{
+		var kms = new FakeKmsKeyOperations();
+		var result = await SopsEnvelopeCodec.EncryptLinesAsync(
+			[SopsDotEnvLine.Comment(" note"), SopsDotEnvLine.Entry("FOO", "bar")],
+			AdminCmkArn, AppCmkArn, "myapp", kms, kms);
+
+		var withoutComment = string.Join('\n',
+			result.Content.Split('\n').Where(l => !l.StartsWith('#')));
+
+		Assert.Equal(new Dictionary<string, string> { ["FOO"] = "bar" },
+			SopsEnvelopeCodec.DecryptWithDataKey(withoutComment, result.DataKey));
+	}
+
+	// 평문 주석(옛 sops 버전이나 손으로 넣은 주석)은 sops처럼 복호화 실패 시 원문 그대로 둔다.
+	[Fact]
+	public async Task DecryptLinesAsAdmin_PlaintextComment_IsKeptAsIs()
+	{
+		var kms = new FakeKmsKeyOperations();
+		var fileContent = (await SopsEnvelopeCodec.EncryptAsync(
+			new Dictionary<string, string> { ["FOO"] = "bar" },
+			AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
+
+		var lines = await SopsEnvelopeCodec.DecryptLinesAsAdminAsync("# plain note\n" + fileContent, kms);
+
+		Assert.Equal([SopsDotEnvLine.Comment(" plain note"), SopsDotEnvLine.Entry("FOO", "bar")], lines);
+	}
+
+	// CMK 제거 시 재래핑 경로는 Parse -> Serialize만 하므로 암호화된 주석 줄이 그대로 보존돼야 한다.
+	[Fact]
+	public async Task ParseThenSerialize_PreservesEncryptedCommentLines()
+	{
+		var kms = new FakeKmsKeyOperations();
+		var fileContent = (await SopsEnvelopeCodec.EncryptLinesAsync(
+			[SopsDotEnvLine.Comment(" note"), SopsDotEnvLine.Entry("FOO", "bar")],
+			AdminCmkArn, AppCmkArn, "myapp", kms, kms)).Content;
+
+		Assert.Equal(fileContent, SopsDotEnvDocument.Parse(fileContent).Serialize());
+	}
+
 	private static string Tamper(string fileContent)
 	{
 		var tampered = fileContent.Replace("data:bI4J", "data:xxxx", StringComparison.Ordinal);
