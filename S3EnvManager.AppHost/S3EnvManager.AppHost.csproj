@@ -1,4 +1,4 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.4.6">
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,6 +7,10 @@
     <Nullable>enable</Nullable>
     <UserSecretsId>f5e08a90-44f4-43d4-9a2d-4f767a694acc</UserSecretsId>
     <IsPackable>false</IsPackable>
+    <!-- Aspire 13.6부터 AspireUseCliBundle=false(SDK 기본값)이면 ASPIRE010 경고가 항상 뜬다.
+         DCP/대시보드는 계속 NuGet 패키지에서 가져오고 Aspire CLI 번들에 의존하지 않기로
+         했으므로 경고를 억제한다. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
