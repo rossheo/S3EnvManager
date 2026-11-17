@@ -1,4 +1,4 @@
-using Amazon.IdentityManagement;
+﻿using Amazon.IdentityManagement;
 using Amazon.KeyManagementService;
 using Amazon.SecurityToken;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -320,6 +320,25 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 
 app.UseHttpsRedirection();
 
+// 브라우저 Accept-Language(=OS 언어 설정)에 맞춰 날짜 형식·달력 표기를 정한다.
+// Blazor Server 회로는 연결 요청 시점의 CurrentCulture를 그대로 이어받는다.
+// 국가 지정 문화권과 언어 중립 문화권을 함께 둔다. Chrome 일본어는 "ja"만 보내는 등
+// 중립 문화권만 오는 경우가 있고, "de-AT" 같은 미등록 지역은 부모("de")로 대체된다.
+string[] supportedCultures =
+[
+	"ko-KR", "ko",
+	"en-US", "en",
+	"ja-JP", "ja",
+	"zh-CN", "zh-Hans",
+	"zh-TW", "zh-Hant",
+	"de-DE", "de",
+	"fr-FR", "fr",
+	"es-ES", "es",
+];
+app.UseRequestLocalization(new RequestLocalizationOptions()
+	.SetDefaultCulture(supportedCultures[0])
+	.AddSupportedCultures(supportedCultures)
+	.AddSupportedUICultures(supportedCultures));
 
 app.UseAntiforgery();
 
