@@ -13,6 +13,28 @@
 		<GetPackageVersionDependsOn>$(GetPackageVersionDependsOn);GitInformation</GetPackageVersionDependsOn>
 	</PropertyGroup>
 
+	<!-- .NET 10 계열 의존성 고정 가드 - 모든 프로젝트가 net10.0을 대상으로 하므로
+	     Microsoft.Extensions.* / Microsoft.AspNetCore.* / Microsoft.EntityFrameworkCore* /
+	     System.* 패키지가 (직접이든 transitive든) 11 이상으로 해석되면 빌드를 실패시킨다.
+	     NuGet 라이브러리(S3EnvManager.Configuration 등)가 소비자에게 .NET 11 계열 의존성을
+	     요구하게 되는 문제를 패키지 업데이트 시점에 바로 잡아내기 위함이다. -->
+	<Target Name="EnforceNet10Dependencies" AfterTargets="ResolvePackageAssets">
+		<ItemGroup>
+			<_Net10GuardPackage Include="%(RuntimeCopyLocalItems.NuGetPackageId)"
+				Version="%(RuntimeCopyLocalItems.NuGetPackageVersion)" />
+			<_Net10GuardPackage Include="%(ResolvedCompileFileDefinitions.NuGetPackageId)"
+				Version="%(ResolvedCompileFileDefinitions.NuGetPackageVersion)" />
+			<_Net10GuardScoped Include="@(_Net10GuardPackage)"
+				Condition="'%(Version)' != '' And $([System.Text.RegularExpressions.Regex]::IsMatch(
+					'%(Identity)', '^(Microsoft\.(Extensions|AspNetCore|EntityFrameworkCore)|System)\.'))" />
+			<_Net10GuardViolation Include="@(_Net10GuardScoped->'%(Identity) %(Version)')"
+				Condition="$([System.Text.RegularExpressions.Regex]::IsMatch(
+					'%(Version)', '^(1[1-9]|[2-9][0-9]|[0-9]{3,})\.'))" />
+		</ItemGroup>
+		<Error Condition="'@(_Net10GuardViolation)' != ''"
+			Text="$(MSBuildProjectName): .NET 10 계열을 벗어난 패키지가 해석되었습니다: @(_Net10GuardViolation->Distinct(), ', '). Directory.Packages.props에서 해당 패키지(또는 이를 끌어오는 상위 패키지)를 10.x 호환 버전으로 낮추십시오." />
+	</Target>
+
 	<Target Name="GitInformation" BeforeTargets="GetAssemblyVersion;CoreGenerateAssemblyInfo;GenerateAssemblyInfo">
 		<PropertyGroup>
 			<!-- version.json에서 Major 읽기 -->
